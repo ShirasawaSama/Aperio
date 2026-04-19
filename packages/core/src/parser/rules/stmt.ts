@@ -41,7 +41,10 @@ export function parseStmt(state: ParserState): Stmt | undefined {
   if (state.matchKeyword("if")) {
     return parseIfGotoStmt(state, tk.span.start);
   }
-  if ((tk.kind === "Ident" && state.checkSymbol(":", 1)) || (state.checkSymbol("@") && state.peek(1)?.kind === "Ident")) {
+  if (
+    (tk.kind === "Ident" && state.checkSymbol(":", 1) && !state.checkSymbol(":", 2)) ||
+    (state.checkSymbol("@") && state.peek(1)?.kind === "Ident")
+  ) {
     return parseLabelStmt(state);
   }
   if (state.checkSymbol("(")) {
@@ -75,7 +78,8 @@ function parseReturnStmt(state: ParserState, start: number): ReturnStmt {
       break;
     }
   }
-  const end = values.length > 0 ? values[values.length - 1]?.span.end : state.previous().span.end;
+  const last = values.length > 0 ? values[values.length - 1] : undefined;
+  const end = last ? last.span.end : state.previous().span.end;
   return {
     id: state.id(),
     kind: "ReturnStmt",

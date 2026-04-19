@@ -28,6 +28,7 @@ describe("cli stubs", () => {
       const asm = await readFile(asmPath, "utf8");
       expect(asm).toContain(".intel_syntax noprefix");
       expect(asm).toContain("main:");
+      expect(asm).toContain("call ExitProcess");
       expect(asm).toContain("ret");
     } finally {
       await rm(outDir, { recursive: true, force: true });

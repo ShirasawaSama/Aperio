@@ -2,11 +2,33 @@
 
 `std/os` 封装了直接面向操作系统的低层接口：系统调用、进程退出、异常终止。
 
+## 章节实现状态
+
+- 解析（Parser）：`[~]` 部分完成（`import`、`extern fn`、变参 `...` 基础已支持）
+- 语义（Semantic）：`[ ]` 未开始（平台 API 合法性校验尚未实现）
+- 编译（Windows x86_64）：`[~]` 部分完成（最小 `std/os/win::exit` 调用已可发射到汇编）
+
 ## 导入
 
 ```rust
 import "std/os" as os
 ```
+
+## 平台模块约定
+
+为了兼顾跨平台 API 和目标平台实现，约定分层如下：
+
+- `std/os`：跨平台门面 API（稳定命名）
+- `std/os/win`：Windows Native-Strict 实现
+- `std/os/linux`：Linux Native-Strict 实现
+
+在 Windows 目标上，推荐直接导入：
+
+```rust
+import "std/os/win" as os
+```
+
+并优先使用 `os::exit(code = ...)`、`os::write_stdout(...)` 这类平台实现 API；`syscall` 在 Windows 上不作为主路径。
 
 ## API
 

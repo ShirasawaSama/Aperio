@@ -5,8 +5,9 @@ main:
   push rbp
   mov rbp, rsp
   sub rsp, 32
+  mov ecx, 0
+  call ExitProcess
   mov rax, 0
-  jmp .L_main_ret
 .L_main_ret:
   add rsp, 32
   pop rbp

@@ -1,4 +1,6 @@
+import "std/os/win" as os
+
 pub fn main() -> (r0: i32) {
+  os::exit(code = 0)
   r0 = 0
-  return r0
 }

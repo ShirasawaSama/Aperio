@@ -1,4 +1,4 @@
-import type { BinaryExpr, Expr, FileUnit, FnDecl, LiteralExpr, ReturnStmt, Stmt } from "@aperio/ast";
+import type { BinaryExpr, CallStmt, Expr, FileUnit, FnDecl, LiteralExpr, ReturnStmt, Stmt } from "@aperio/ast";
 
 // Minimal native-strict x86_64 (Windows ABI flavored) asm emitter.
 // v1 scope: enough for hello-world style functions and simple arithmetic.
@@ -49,6 +49,9 @@ function emitStmt(stmt: Stmt, out: string[], endLabel: string): void {
       return;
     case "ReturnStmt":
       emitReturn(stmt, out, endLabel);
+      return;
+    case "CallStmt":
+      emitCall(stmt, out);
       return;
     default:
       // Keep unsupported statements as comments for debug visibility.
@@ -109,6 +112,25 @@ function emitReturn(stmt: ReturnStmt, out: string[], endLabel: string): void {
     }
   }
   out.push(`  jmp ${endLabel}`);
+}
+
+function emitCall(stmt: CallStmt, out: string[]): void {
+  if (stmt.call.callee.kind === "IdentExpr" && stmt.call.callee.name.text === "os::exit") {
+    const codeArg = stmt.call.args.find((arg) => arg.name?.text === "code") ?? stmt.call.args[0];
+    if (!codeArg) {
+      out.push("  # unsupported os::exit call: missing code argument");
+      return;
+    }
+    const code = exprToOperand(codeArg.value);
+    if (!code) {
+      out.push("  # unsupported os::exit call: non-literal/non-register argument");
+      return;
+    }
+    out.push(`  mov ecx, ${code}`);
+    out.push("  call ExitProcess");
+    return;
+  }
+  out.push(`  # unsupported call: ${renderCallName(stmt.call.callee)}`);
 }
 
 function exprToOperand(expr: Expr): string | undefined {
@@ -202,4 +224,14 @@ function binaryOpToAsm(op: string): string | undefined {
 
 function sanitizeSymbol(name: string): string {
   return name.replaceAll("::", "_");
+}
+
+function renderCallName(expr: Expr): string {
+  if (expr.kind === "IdentExpr") {
+    return expr.name.text;
+  }
+  if (expr.kind === "RegRefExpr") {
+    return expr.name;
+  }
+  return expr.kind;
 }

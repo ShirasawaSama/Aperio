@@ -161,6 +161,7 @@ verifier --> llvmHook["LLVMHook"]
 - [ ] `--emit obj` 通过工具链产出 `.obj`
 - [ ] `--emit exe` 链接生成 `.exe`
 - [ ] 首选 `clang` 驱动链路（后续再补其他工具链）
+- [~] `std/os/win` 最小链路（`os::exit`）打通到汇编发射
 
 ## 3.4 验收（当前里程碑）
 
