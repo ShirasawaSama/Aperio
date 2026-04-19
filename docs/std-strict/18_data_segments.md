@@ -6,7 +6,7 @@
 
 `val` 声明一个不可变的全局数据，**必须初始化**。它会被放进二进制的 `.rodata` 段（只读数据段），运行时任何对它的写入都会触发段错误。
 
-```text
+```rust
 val TABLE: u32[4]     = [10, 20, 30, 40]
 val MESSAGE: u8[]     = "Hello"
 val MAGIC: u64[1]     = [0xDEADBEEFCAFEBABE]
@@ -18,7 +18,7 @@ val MAGIC: u64[1]     = [0xDEADBEEFCAFEBABE]
 
 ### 初始化的 var → `.data`
 
-```text
+```rust
 var COUNTER: i32[1]   = [0]
 var STATE: u8[16]     = [1, 2, 3, 4, 5, 6, 7, 8, 0, 0, 0, 0, 0, 0, 0, 0]
 ```
@@ -27,7 +27,7 @@ var STATE: u8[16]     = [1, 2, 3, 4, 5, 6, 7, 8, 0, 0, 0, 0, 0, 0, 0, 0]
 
 ### 未初始化的 var → `.bss`
 
-```text
+```rust
 var BUFFER: u8[1024]
 var HEAP: u64[4096]
 ```
@@ -38,7 +38,7 @@ var HEAP: u64[4096]
 
 所有数据段声明都使用数组语法 `<type>[<size>]`，即使只存一个值也要写成 `[1]`：
 
-```text
+```rust
 val COUNT: i32[1]     = [42]        // 一个 i32
 val VEC: f32[3]       = [1.0, 2.0, 3.0]    // 三个 f32
 var POOL: u8[4096]                   // 4KB 字节数组
@@ -48,7 +48,7 @@ var POOL: u8[4096]                   // 4KB 字节数组
 
 可以省略数组长度，让编译器根据初始化列表推导：
 
-```text
+```rust
 val PRIMES: i32[] = [2, 3, 5, 7, 11, 13]
 // 等价于 val PRIMES: i32[6] = [2, 3, 5, 7, 11, 13]
 ```
@@ -59,7 +59,7 @@ val PRIMES: i32[] = [2, 3, 5, 7, 11, 13]
 
 数据段名本身代表的是一个**地址符号**。要读写它的内容，需要先用 `&` 取地址再用 `mem.*[...]`：
 
-```text
+```rust
 val TABLE: u32[4] = [10, 20, 30, 40]
 var COUNTER: i32[1] = [0]
 
@@ -80,7 +80,7 @@ pub fn demo() -> r0 uses (r1, r2) {
 
 任何 `val` 或 `var` 声明的数据段都有一个 `.length` 属性，返回它的**字节数**（不是元素个数）。这个属性是编译期常量，可以用在 `const` 里：
 
-```text
+```rust
 val BUFFER: u32[16] = [ ... ]
 const BUFFER_BYTES: u32 = BUFFER.length      // = 64
 
@@ -94,7 +94,7 @@ const MSG_LEN: u32 = MSG.length              // = 5
 
 `val` 和 `var` 可以搭配 `pub` 和 `export`：
 
-```text
+```rust
 pub val PUBLIC_TABLE: u32[4] = [1, 2, 3, 4]
 export var GLOBAL_STATE: u64[1] = [0]
 export pub val API_VERSION: u32[1] = [1]

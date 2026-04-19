@@ -6,7 +6,7 @@
 
 函数签名包含三部分，共同组成 ABI 契约：
 
-```text
+```rust
 pub fn process(r1, r2) -> r0 uses (r3, r4)
                 ^^^^^^     ^^         ^^^^^^
                 参数        返回       临时寄存器
@@ -31,7 +31,7 @@ pub fn process(r1, r2) -> r0 uses (r3, r4)
 
 被调用者可以自由读写这些寄存器，调用者**不能**假定它们在调用后保持原值。如果调用者需要保留临时寄存器的值，必须在调用前自行保存：
 
-```text
+```rust
 // 假设要调用 process(r1, r2) -> r0 uses (r3, r4)
 // 而我想在调用后继续使用 r3
 
@@ -44,7 +44,7 @@ r3 = r5                                // 恢复 r3
 
 **没有出现**在签名任何位置的寄存器都属于 callee-saved。被调用者如果要使用它们，必须**自己保存和恢复**：
 
-```text
+```rust
 pub fn foo(r1) -> r0 uses r2 {
     // 这里我想用 r5，但没在签名中声明
     // 必须在使用前保存、返回前恢复
@@ -75,7 +75,7 @@ pub fn foo(r1) -> r0 uses r2 {
 
 违反规则的例子：
 
-```text
+```rust
 pub fn bad(r1) -> r0 {
     r5 = r1 + 1        // 编译错误：r5 未在签名中声明
     r0 = r5
@@ -84,7 +84,7 @@ pub fn bad(r1) -> r0 {
 
 修正方式之一——把 `r5` 加入 `uses`：
 
-```text
+```rust
 pub fn good(r1) -> r0 uses r5 {
     r5 = r1 + 1
     r0 = r5
@@ -103,7 +103,7 @@ pub fn good(r1) -> r0 uses r5 {
 
 多返回值在 ABI 层面和多个独立的"调用后活寄存器"没有本质区别——只是它们被承诺持有具体的值，而不是被破坏的垃圾：
 
-```text
+```rust
 fn divmod(r1, r2) -> (r0, r3) uses r4 {
     r0 = r1 / r2
     r3 = r1 % r2
@@ -122,7 +122,7 @@ fn divmod(r1, r2) -> (r0, r3) uses r4 {
 
 当参数数量超过可用寄存器时（或者出于 ABI 兼容性需要），可以把部分参数放在栈上。语法形式为 `stack[<offset>]`：
 
-```text
+```rust
 pub fn many_args(r1, r2, r3, r4, stack[0], stack[8]) -> r0 {
     // r1 ~ r4 通过寄存器传入
     // 第 5 个参数在 sp + 0

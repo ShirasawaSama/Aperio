@@ -8,7 +8,7 @@ Std-Strict 没有 `if/else` 块、没有 `while` 循环、没有 `for` 循环。
 
 标签用 `@` 前缀定义，后跟一个冒号。它标记代码中的一个位置，让跳转指令能以它为目标。
 
-```text
+```rust
 @loop_start:
     r1 = r1 + 1
     goto(@loop_start)
@@ -18,7 +18,7 @@ Std-Strict 没有 `if/else` 块、没有 `while` 循环、没有 `for` 循环。
 
 标签的作用域是**函数级别**的：同一个函数内标签名不能重复，不同函数之间可以重名。
 
-```text
+```rust
 pub fn foo() -> r0 {
 @done:
     r0 = 0
@@ -38,7 +38,7 @@ pub fn bar() -> r0 {
 
 `goto(@label)` 无条件地把控制流转移到指定标签。
 
-```text
+```rust
 goto(@end)
 // 这里的代码不会被执行
 @end:
@@ -50,7 +50,7 @@ goto(@end)
 
 条件跳转的语法是 `if (<condition>) goto(@label)`：
 
-```text
+```rust
 if (r1 > 0) goto(@positive)
 if (r1 == r2) goto(@equal)
 if (r1 <= 100) goto(@in_range)
@@ -62,7 +62,7 @@ if (r1 <= 100) goto(@in_range)
 
 条件表达式必须是**单个比较**。不允许组合的逻辑条件：
 
-```text
+```rust
 // 非法：
 if (r1 > 0 && r2 < 10) goto(@ok)
 
@@ -84,7 +84,7 @@ goto(@ok)
 
 但不能是内存表达式。如果要比较内存中的值，需要先加载到寄存器：
 
-```text
+```rust
 // 非法：
 if (mem.i32[r1] > 0) goto(@ok)
 
@@ -97,7 +97,7 @@ if (r2 > 0) goto(@ok)
 
 ### 等价于 if/else
 
-```text
+```rust
 // if (r1 > 0) { A } else { B }
 if (r1 > 0) goto(@then)
     // B
@@ -109,7 +109,7 @@ if (r1 > 0) goto(@then)
 
 ### 等价于 while 循环
 
-```text
+```rust
 // while (r1 < 10) { body; r1++ }
 @loop:
     if (r1 >= 10) goto(@done)
@@ -121,7 +121,7 @@ if (r1 > 0) goto(@then)
 
 ### 等价于 do-while 循环
 
-```text
+```rust
 // do { body } while (r1 < 10)
 @loop:
     // body
@@ -130,7 +130,7 @@ if (r1 > 0) goto(@then)
 
 ### 等价于 for 循环
 
-```text
+```rust
 // for (r1 = 0; r1 < 10; r1++) { body }
 r1 = 0
 @loop:

@@ -6,7 +6,7 @@
 
 用双引号包围：
 
-```text
+```rust
 val MSG: u8[] = "Hello, Aperio!"
 ```
 
@@ -16,7 +16,7 @@ val MSG: u8[] = "Hello, Aperio!"
 
 前缀 `c` 表示编译器应当自动追加一个 `\0` 字节：
 
-```text
+```rust
 val GREETING: u8[] = c"Hello"
 // 等价于:
 val GREETING: u8[] = ["H", "e", "l", "l", "o", 0]
@@ -29,7 +29,7 @@ val GREETING: u8[] = ["H", "e", "l", "l", "o", 0]
 
 数组初始化列表允许字符串片段和数字混写，编译器会把它们按字节顺序拼接：
 
-```text
+```rust
 val HTTP_REQ: u8[] = [
     "GET / HTTP/1.1\r\n",
     "Host: example.com\r\n",
@@ -54,7 +54,7 @@ val HTTP_REQ: u8[] = [
 | `\"`     | 双引号              |
 | `\xHH`   | 十六进制字节（精确） |
 
-```text
+```rust
 val PATH: u8[]     = "C:\\Users\\Anri"
 val PACKET: u8[]   = c"\x7F\x45\x4C\x46"        // ELF 魔数
 val LINE: u8[]     = "first\nsecond\n"
@@ -64,7 +64,7 @@ val LINE: u8[]     = "first\nsecond\n"
 
 和普通数组一样，字符串字面量也有 `.length` 属性，返回**字节数**：
 
-```text
+```rust
 val MSG:  u8[] = "Hello"
 val CMSG: u8[] = c"Hello"
 
@@ -74,7 +74,7 @@ const CMSG_LEN: u32 = CMSG.length        // 6（包含 \0）
 
 对于写 `sys_write` 这种需要长度的系统调用特别有用：
 
-```text
+```rust
 val GREETING: u8[] = "Hi!\n"
 
 pub fn say_hi() -> r0 {
@@ -87,7 +87,7 @@ pub fn say_hi() -> r0 {
 
 源码里的字符串字面量按 **UTF-8** 解释。源文件本身也应该是 UTF-8 编码的。非 ASCII 字符会正确地按 UTF-8 展开为多个字节：
 
-```text
+```rust
 val CN: u8[] = "你好"
 // 展开为 6 个字节: E4 BD A0 E5 A5 BD（UTF-8 编码）
 // CN.length == 6
