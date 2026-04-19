@@ -32,10 +32,10 @@ r0 = vec::dot(r1 = f1, r2 = f2)
 
 | 路径开头        | 含义                                  | 查找位置                                       |
 |-----------------|---------------------------------------|------------------------------------------------|
-| `"./"` / `"../"`| 相对当前文件                          | 按文件系统                                     |
-| `"/"`           | 绝对路径                              | 按文件系统                                     |
 | `"std/..."`     | 内置标准库（编译器隐式提供）          | 编译器 embed 的桩文件                          |
-| `"<pkg>/..."`   | 已安装的包                            | `APERIO_PKG_PATH` 环境变量指定的仓库           |
+| `"./"` / `"../"`| 相对当前文件                          | 按文件系统                                     |
+| `"/"`           | 相对项目根                            | 按文件系统，根 = `aperio.toml` 所在目录        |
+| `"<pkg>/..."`   | 已登记的第三方包                      | 查项目 `aperio.toml` 的 `[deps]` 短名          |
 
 **扩展名默认 `.ap`**——`"./helpers"` 会尝试 `./helpers.ap`。
 
@@ -171,3 +171,31 @@ pub fn main() -> (r0: i32) {
 ```
 
 一个文件里的 `import` 全部集中在顶部（约定，非强制），所有外部依赖一目了然。
+
+## 第三方包
+
+`import "<pkg>/..."` 里的 `<pkg>` 指的是项目 `aperio.toml` 的 `[deps]` 里登记的**短名**，不是 Git URL。
+
+```toml
+# aperio.toml
+[deps]
+json = "github.com/aperio-lang/json@v1.4.0"
+```
+
+```rust
+import "json" as j               // OK，短名在 [deps] 里
+import "json/ast" as jast        // OK，包内子路径
+
+import "github.com/aperio-lang/json" as j          // 编译错：E5005 raw VCS path
+import "json@v1.4.0" as j                           // 编译错：E5004 version in import path
+import "unknown-pkg" as u                           // 编译错：E5003 unknown package
+```
+
+**禁止在 `import` 字面量里出现 VCS URL 或版本号**——版本集中由清单管理，源码里只认短名。
+
+完整的包管理规则（清单格式、版本语义、MVS 解析、锁文件、缓存）在独立的《Aperio 包管理器》文档里：
+
+- [包管理器总览](../package-manager/README.md)
+- [aperio.toml schema](../package-manager/02_manifest.md)
+- [import 解析规则](../package-manager/04_resolution.md)
+- [标准库为什么不在 `[deps]` 里](../package-manager/09_stdlib.md)
