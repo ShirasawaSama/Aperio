@@ -1,0 +1,10 @@
+{
+  "name": "@aperio/cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "bin": {
+    "aperio": "./src/bin.ts"
+  }
+}

@@ -1,1 +1,10 @@
 plan.md
+node_modules/
+dist/
+coverage/
+.DS_Store
+*.log
+.aperio/
+vendor/
+packages/**/dist/
+__snapshots__

@@ -1,0 +1,4 @@
+import "std/io" as io
+
+pub fn main() {
+}
