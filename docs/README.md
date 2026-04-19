@@ -15,6 +15,18 @@ docs/
 
 **Loose 模式** 的文档还没写——它的实现要等到 Std-Strict 完整落地后才能开始设计降级路径，目前仅在主计划的 roadmap 里作为 v6 目标占位。
 
+## 实现状态看板（持续更新）
+
+> 约定：`[ ]` 未开始，`[~]` 进行中，`[x]` 完成。每次核心阶段推进后同步更新。
+
+- [~] `P0` Parser/AST：已完成 parser rule 分层（`shared/expr/stmt/function/alias`）与核心 strict 语法子集（`uses`、命名参数调用、多返回赋值、label/goto、`extern fn`）
+- [ ] `P1` 编译器主链路（Windows）：`Aperio -> .s -> .obj -> .exe`
+- [ ] `P1` 寄存器分配：线性扫描最小可用 + 图染色接口预留
+- [ ] `P2` Desugar 层：AST in -> AST out 规范化
+- [ ] `P3` LLVM IR：后置规划，不阻塞当前主线
+
+详细任务与勾选状态以仓库根目录 `todo.md` 为准。
+
 ## 三大模式
 
 Aperio 按照抽象层次分成三档，文件扩展名决定编译器用哪套规则：
