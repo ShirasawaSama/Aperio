@@ -1,6 +1,9 @@
 import "std/os/win" as os
 
+val MSG: u8[] = "Hello, world!\n"
+
 pub fn main() -> (r0: i32) {
+  os::write_stdout(ptr = MSG, len = 14)
   os::exit(code = 0)
   r0 = 0
 }

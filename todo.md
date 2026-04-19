@@ -158,14 +158,14 @@ verifier --> llvmHook["LLVMHook"]
 ## 3.3 产物链路（可执行）
 
 - [x] `--emit asm` 输出 `.s`
-- [ ] `--emit obj` 通过工具链产出 `.obj`
-- [ ] `--emit exe` 链接生成 `.exe`
-- [ ] 首选 `clang` 驱动链路（后续再补其他工具链）
-- [~] `std/os/win` 最小链路（`os::exit`）打通到汇编发射
+- [x] `--emit obj` 通过工具链产出 `.obj`
+- [x] `--emit exe` 链接生成 `.exe`
+- [~] 首选 `clang` 驱动链路（后续再补其他工具链；已支持 MSVC `ml64+link` 自动回退）
+- [~] `std/os/win` 最小链路（`os::exit` + `os::write_stdout`）打通到汇编发射
 
 ## 3.4 验收（当前里程碑）
 
-- [ ] `hello.ap -> hello.s -> hello.obj -> hello.exe` 全链路通过
+- [x] `hello.ap -> hello.s -> hello.obj -> hello.exe` 全链路通过
 - [ ] 至少 3 个样例可执行（调用、分支、内存访问）
 - [ ] native-strict x86 样例可通过完整链路
 

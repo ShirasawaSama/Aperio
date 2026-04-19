@@ -8,3 +8,7 @@ coverage/
 vendor/
 packages/**/dist/
 __snapshots__
+packages/core/test/fixtures/*.s
+packages/core/test/fixtures/*.asm
+packages/core/test/fixtures/*.obj
+packages/core/test/fixtures/*.exe

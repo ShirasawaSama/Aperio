@@ -39,7 +39,8 @@ cli
   .option("--out-dir <dir>", "output directory")
   .action(async (files: string[] | string | undefined, options) => {
     const fileList = Array.isArray(files) ? files : files ? [files] : [];
-    const emit = options.emit === "asm" ? "asm" : "asm";
+    const emit =
+      options.emit === "obj" ? "obj" : options.emit === "exe" ? "exe" : "asm";
     const target = options.target === "win-x64" ? "win-x64" : "win-x64";
     process.exitCode = await runBuild(fileList, {
       emit,
