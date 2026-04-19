@@ -32,4 +32,35 @@ describe("parser", () => {
     expect(result.diagnostics).toEqual([]);
     expect(result.file).toMatchSnapshot();
   });
+
+  it("parses top-level declarations for p0", () => {
+    const src = [
+      "const MAX: i32 = 1024",
+      "val TABLE: u32[4] = [10, 20, 30, 40]",
+      "var COUNTER: i32[1] = [0]",
+      "type BinOp = fn(r1: i64, r2: i64) -> (r0: i64)",
+      "struct Point {",
+      "  x: i32,",
+      "  y: i32,",
+      "}",
+      "macro swap!($a: reg, $b: reg) {",
+      "  // body skipped for now",
+      "}",
+      "pub fn test(a @ r1: i64, b @ r2: i64) -> (r0: i64) {",
+      "@entry:",
+      "  if (a > b) goto(@gt)",
+      "  goto(@done)",
+      "@gt:",
+      "  r0 = a",
+      "  return r0",
+      "@done:",
+      "  r0 = b",
+      "}",
+      "",
+    ].join("\n");
+    const tokens = lex(1, src).tokens;
+    const result = parseFile("decls.ap", tokens);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.file).toMatchSnapshot();
+  });
 });

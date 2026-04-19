@@ -1,4 +1,13 @@
-import type { BinaryExpr, CallArg, CallExpr, Expr, IdentExpr, LiteralExpr, RegRefExpr } from "@aperio/ast";
+import type {
+  ArrayLiteralExpr,
+  BinaryExpr,
+  CallArg,
+  CallExpr,
+  Expr,
+  IdentExpr,
+  LiteralExpr,
+  RegRefExpr,
+} from "@aperio/ast";
 import { span } from "@aperio/diagnostics";
 import type { ParserState } from "../state.js";
 import { parsePathIdent, parseTypeExpr } from "./shared.js";
@@ -12,7 +21,7 @@ export function parseExpr(state: ParserState): Expr | undefined {
 }
 
 function parseCastExpr(state: ParserState): Expr | undefined {
-  let expr = parseAdditiveExpr(state);
+  let expr = parseComparisonExpr(state);
   if (!expr) {
     return undefined;
   }
@@ -30,6 +39,25 @@ function parseCastExpr(state: ParserState): Expr | undefined {
     };
   }
   return expr;
+}
+
+function parseComparisonExpr(state: ParserState): Expr | undefined {
+  let left = parseAdditiveExpr(state);
+  if (!left) {
+    return undefined;
+  }
+  while (true) {
+    const op = matchComparisonOp(state);
+    if (!op) {
+      break;
+    }
+    const right = parseAdditiveExpr(state);
+    if (!right) {
+      return left;
+    }
+    left = makeBinary(state, left, op, right);
+  }
+  return left;
 }
 
 function parseAdditiveExpr(state: ParserState): Expr | undefined {
@@ -111,6 +139,9 @@ function parsePrimaryExpr(state: ParserState): Expr | undefined {
   if (!tk) {
     return undefined;
   }
+  if (state.checkSymbol("[")) {
+    return parseArrayLiteral(state);
+  }
   if (state.matchSymbol("(")) {
     const inner = parseExpr(state);
     if (!inner) {
@@ -163,8 +194,51 @@ function parsePrimaryExpr(state: ParserState): Expr | undefined {
     };
     return node;
   }
+  if (tk.kind === "Keyword" && (tk.text === "true" || tk.text === "false")) {
+    state.index += 1;
+    const node: LiteralExpr = {
+      id: state.id(),
+      kind: "LiteralExpr",
+      span: tk.span,
+      literalKind: "bool",
+      value: tk.text,
+    };
+    return node;
+  }
   state.error(tk, "E2014", "expected expression");
   return undefined;
+}
+
+function parseArrayLiteral(state: ParserState): ArrayLiteralExpr | undefined {
+  const open = state.consumeSymbol("[", "expected '[' to start array literal");
+  if (!open) {
+    return undefined;
+  }
+  const items: Expr[] = [];
+  while (!state.at("Eof")) {
+    if (state.matchSymbol("]")) {
+      break;
+    }
+    const item = parseExpr(state);
+    if (!item) {
+      return undefined;
+    }
+    items.push(item);
+    if (state.matchSymbol("]")) {
+      break;
+    }
+    if (!state.matchSymbol(",")) {
+      state.error(state.current(), "E2021", "expected ',' or ']' in array literal");
+      return undefined;
+    }
+  }
+  const end = state.previous().span.end;
+  return {
+    id: state.id(),
+    kind: "ArrayLiteralExpr",
+    span: span(state.fileId, open.span.start, end),
+    items,
+  };
 }
 
 function parseCallExpr(state: ParserState, callee: Expr): CallExpr {
@@ -240,4 +314,26 @@ function makeBinary(state: ParserState, left: Expr, op: string, right: Expr): Bi
     left,
     right,
   };
+}
+
+function matchComparisonOp(state: ParserState): string | undefined {
+  if (state.matchSymbolSequence("=", "=")) {
+    return "==";
+  }
+  if (state.matchSymbolSequence("!", "=")) {
+    return "!=";
+  }
+  if (state.matchSymbolSequence(">", "=")) {
+    return ">=";
+  }
+  if (state.matchSymbolSequence("<", "=")) {
+    return "<=";
+  }
+  if (state.matchSymbol(">")) {
+    return ">";
+  }
+  if (state.matchSymbol("<")) {
+    return "<";
+  }
+  return undefined;
 }

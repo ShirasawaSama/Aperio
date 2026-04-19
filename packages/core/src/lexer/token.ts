@@ -32,4 +32,7 @@ export const Keywords = new Set([
   "var",
   "struct",
   "type",
+  "macro",
+  "true",
+  "false",
 ]);

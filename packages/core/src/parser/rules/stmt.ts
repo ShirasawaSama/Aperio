@@ -4,6 +4,7 @@ import type {
   Expr,
   FnBodyAliasDecl,
   GotoStmt,
+  Ident,
   IfGotoStmt,
   LabelStmt,
   MultiAssignStmt,
@@ -40,7 +41,7 @@ export function parseStmt(state: ParserState): Stmt | undefined {
   if (state.matchKeyword("if")) {
     return parseIfGotoStmt(state, tk.span.start);
   }
-  if (tk.kind === "Ident" && state.checkSymbol(":", 1)) {
+  if ((tk.kind === "Ident" && state.checkSymbol(":", 1)) || (state.checkSymbol("@") && state.peek(1)?.kind === "Ident")) {
     return parseLabelStmt(state);
   }
   if (state.checkSymbol("(")) {
@@ -84,7 +85,7 @@ function parseReturnStmt(state: ParserState, start: number): ReturnStmt {
 }
 
 function parseGotoStmt(state: ParserState, start: number): GotoStmt | undefined {
-  const label = state.parseIdent("expected label after 'goto'");
+  const label = parseLabelRef(state, "expected label after 'goto'");
   if (!label) {
     return undefined;
   }
@@ -97,15 +98,19 @@ function parseGotoStmt(state: ParserState, start: number): GotoStmt | undefined 
 }
 
 function parseIfGotoStmt(state: ParserState, start: number): IfGotoStmt | undefined {
+  const wrapped = state.matchSymbol("(");
   const condition = parseExpr(state);
   if (!condition) {
     return undefined;
+  }
+  if (wrapped) {
+    state.consumeSymbol(")", "expected ')' after if condition");
   }
   if (!state.matchKeyword("goto")) {
     state.error(state.current(), "E2019", "expected 'goto' after if condition");
     return undefined;
   }
-  const target = state.parseIdent("expected label after 'if ... goto'");
+  const target = parseLabelRef(state, "expected label after 'if ... goto'");
   if (!target) {
     return undefined;
   }
@@ -119,6 +124,7 @@ function parseIfGotoStmt(state: ParserState, start: number): IfGotoStmt | undefi
 }
 
 function parseLabelStmt(state: ParserState): LabelStmt | undefined {
+  state.matchSymbol("@");
   const label = state.parseIdent("expected label");
   if (!label) {
     return undefined;
@@ -194,4 +200,14 @@ function parseAssignOrCallStmt(state: ParserState): Stmt | undefined {
   }
   state.error(state.current() ?? state.previous(), "E2017", "expected assignment or call statement");
   return undefined;
+}
+
+function parseLabelRef(state: ParserState, message: string): Ident | undefined {
+  const withParens = state.matchSymbol("(");
+  state.matchSymbol("@");
+  const label = state.parseIdent(message);
+  if (withParens) {
+    state.consumeSymbol(")", "expected ')' after label reference");
+  }
+  return label;
 }

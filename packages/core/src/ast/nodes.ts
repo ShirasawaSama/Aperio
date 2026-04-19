@@ -38,6 +38,7 @@ export type Stmt =
 
 export type Expr =
   | LiteralExpr
+  | ArrayLiteralExpr
   | RegRefExpr
   | IdentExpr
   | CallExpr
@@ -227,6 +228,11 @@ export interface LiteralExpr extends BaseNode {
   kind: "LiteralExpr";
   literalKind: "int" | "float" | "bool" | "string" | "char";
   value: string;
+}
+
+export interface ArrayLiteralExpr extends BaseNode {
+  kind: "ArrayLiteralExpr";
+  items: Expr[];
 }
 
 export interface RegRefExpr extends BaseNode {

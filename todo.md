@@ -35,10 +35,10 @@ loose 层继续暂缓。
 
 ## 1.2 Parser
 
-- [ ] 顶层声明覆盖：`fn/extern fn/const/val/var/struct/type/import/macro`
-- [ ] 函数签名覆盖：参数、返回、`uses`、属性、别名绑定
-- [ ] 语句覆盖：赋值、多返回赋值、标签、`goto`、条件跳转
-- [ ] 表达式覆盖：调用、`as`、地址、内存访问、运算符优先级
+- [~] 顶层声明覆盖：`fn/extern fn/const/val/var/struct/type/import/macro`
+- [~] 函数签名覆盖：参数、返回、`uses`、属性、别名绑定
+- [~] 语句覆盖：赋值、多返回赋值、标签、`goto`、条件跳转
+- [~] 表达式覆盖：调用、`as`、地址、内存访问、运算符优先级
 - [ ] FFI/变参语法（`...`）解析
 - [ ] native-strict x86 专属语法（`lea[...]`、限制式写法）解析
 - [ ] 消灭通用 `E2999`，改为精确语法错误

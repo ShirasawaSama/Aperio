@@ -6,6 +6,9 @@ const SLOT_NAME_RE = /^r\d+$|^f\d+$/;
 
 export function parseTypeExpr(state: ParserState): TypeExpr | undefined {
   const start = state.current()?.span.start ?? state.previous().span.start;
+  if (state.matchKeyword("fn")) {
+    return parseFnTypeExpr(state, start);
+  }
   if (state.matchSymbol("*")) {
     const base = parseTypeExpr(state);
     if (!base) {
@@ -26,12 +29,14 @@ export function parseTypeExpr(state: ParserState): TypeExpr | undefined {
   if (!name) {
     return undefined;
   }
+  const withArray = parseTypeArraySuffix(state, name.text);
+  const end = state.previous().span.end;
   return {
     id: state.id(),
     kind: "TypeExpr",
-    span: name.span,
+    span: span(state.fileId, name.span.start, end),
     typeKind: "named",
-    name: name.text,
+    name: withArray,
   };
 }
 
@@ -177,4 +182,92 @@ export function parseTuplePattern(state: ParserState): TuplePattern | undefined 
     span: span(state.fileId, open.span.start, end),
     items,
   };
+}
+
+function parseFnTypeExpr(state: ParserState, start: number): TypeExpr | undefined {
+  state.consumeSymbol("(", "expected '(' after fn in function type");
+  const params: TypeExpr[] = [];
+  while (!state.at("Eof")) {
+    if (state.matchSymbol(")")) {
+      break;
+    }
+    // Support both `r1: i64` and plain `i64` in type signatures.
+    if (state.current()?.kind === "Ident" && state.checkSymbol(":", 1)) {
+      state.index += 1;
+      state.index += 1;
+    }
+    const ty = parseTypeExpr(state);
+    if (!ty) {
+      return undefined;
+    }
+    params.push(ty);
+    if (state.matchSymbol(")")) {
+      break;
+    }
+    if (!state.matchSymbol(",")) {
+      state.error(state.current(), "E2023", "expected ',' or ')' in function type parameter list");
+      return undefined;
+    }
+  }
+
+  const returns: TypeExpr[] = [];
+  if (state.matchSymbolSequence("-", ">")) {
+    if (state.matchSymbol("(")) {
+      while (!state.at("Eof")) {
+        if (state.matchSymbol(")")) {
+          break;
+        }
+        if (state.current()?.kind === "Ident" && state.checkSymbol(":", 1)) {
+          state.index += 1;
+          state.index += 1;
+        }
+        const retTy = parseTypeExpr(state);
+        if (!retTy) {
+          return undefined;
+        }
+        returns.push(retTy);
+        if (state.matchSymbol(")")) {
+          break;
+        }
+        if (!state.matchSymbol(",")) {
+          state.error(state.current(), "E2024", "expected ',' or ')' in function type return list");
+          return undefined;
+        }
+      }
+    } else {
+      const single = parseTypeExpr(state);
+      if (!single) {
+        return undefined;
+      }
+      returns.push(single);
+    }
+  }
+
+  const all = [...params, ...returns];
+  const end = state.previous().span.end;
+  return {
+    id: state.id(),
+    kind: "TypeExpr",
+    span: span(state.fileId, start, end),
+    typeKind: "fn",
+    name: "fn",
+    params: all,
+  };
+}
+
+function parseTypeArraySuffix(state: ParserState, baseName: string): string {
+  let name = baseName;
+  while (state.matchSymbol("[")) {
+    const parts: string[] = [];
+    while (!state.at("Eof") && !state.matchSymbol("]")) {
+      const tk = state.current();
+      if (!tk) {
+        break;
+      }
+      parts.push(tk.text);
+      state.index += 1;
+    }
+    name += `[${parts.join("")}]`;
+  }
+  return name;
 }
