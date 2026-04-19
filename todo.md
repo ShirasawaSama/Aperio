@@ -1,186 +1,246 @@
-# Aperio 全量开发 TODO（v0 -> v1+）
+# Aperio 开发 TODO（当前主线：x86_windows 可执行优先）
 
-这份清单按你的 4 个初期目标拆解为可落地任务。  
-状态约定：`[ ]` 未开始，`[~]` 进行中，`[x]` 完成。
-loose 层先完全跳过，先不做
+状态约定：`[ ]` 未开始，`[~]` 进行中，`[x]` 完成。  
+当前策略：先打通 `Aperio -> x86_64 asm(.s, Intel on GAS) -> obj -> exe`，LLVM IR 延后。  
+loose 层继续暂缓。
+
+## 重要等级总览（按当前目标）
+
+- [ ] `P0`（最高）：完成 AST 全覆盖（先把语言入口打穿）
+- [ ] `P1`（主目标）：生成 Windows 可执行文件（`.s -> .obj -> .exe`）
+- [ ] `P2`（后续增强）：Desugar、工程化完善、性能与体验提升
+- [ ] `P3`（远期目标）：LLVM IR 输出/互操作
 
 ---
 
-## 0. 基础治理与规则同步
+## 0. 基础治理与对齐
 
 - [ ] 建立统一状态面板（本文件 + issue 编号 + 负责人）
-- [ ] 固化“文档是规范源”的流程：语法变更必须先改 `docs/`
-- [ ] 增加 CI（至少：`build/test/lint`）
-- [ ] 增加 nightly 回归（解析器覆盖所有 `docs/` 示例）
+- [ ] 固化“文档是规范源”流程：语法变更必须先改 `docs/`
+- [ ] CI 最小闭环：`build/test/lint`
+- [ ] nightly 回归：解析器覆盖 `docs/` 示例
+- [ ] 在 `ARCHITECTURE.md` 固化当前目标：`windows x64 first, llvm later`
 
 ---
 
-## 1. 目标一：文档中的所有语法都能解析成 AST
+## 1. `P0` Parser/AST 完整性（先把语言入口打牢）
 
-## 1.1 词法层（Lexer）补全
+## 1.1 Lexer
 
-- [ ] 关键字全集与保留字策略（含 `alias`、属性、宏标记等）
-- [ ] 字面量全集（整型后缀、浮点后缀、字符串、c 字符串、数组字面量片段）
-- [ ] 运算符与分隔符全集（`::`、`->`、`@label`、`...`、属性括号）
-- [ ] 注释与错误恢复（行注释、块注释可选）
-- [ ] token 位置与错误信息标准化（稳定 `E1xxx`）
+- [ ] 关键字与保留字全集（含 `alias`、属性、宏标记）
+- [ ] 字面量全集（整型/浮点后缀、字符串、c 字符串）
+- [ ] 运算符与分隔符全集（`::`、`->`、`@label`、`...`）
+- [ ] 注释与错误恢复（非法字符、非法 token 连续恢复）
+- [ ] token 位置和错误编号稳定化（`E1xxx`）
 
-## 1.2 语法层（Parser）补全
+## 1.2 Parser
 
-- [ ] 顶层声明全覆盖：`fn/extern fn/const/val/var/struct/type/import/macro`
-- [ ] 函数签名全覆盖：参数、返回、`uses`、属性、别名绑定
-- [ ] 语句全覆盖：赋值、多返回赋值、标签、`goto`、`if (...) goto (...)`
-- [ ] 表达式全覆盖：调用、`as`、地址、内存访问、字段访问、运算符优先级
-- [ ] 宏调用与宏声明（先解析形态，语义后置）
+- [ ] 顶层声明覆盖：`fn/extern fn/const/val/var/struct/type/import/macro`
+- [ ] 函数签名覆盖：参数、返回、`uses`、属性、别名绑定
+- [ ] 语句覆盖：赋值、多返回赋值、标签、`goto`、条件跳转
+- [ ] 表达式覆盖：调用、`as`、地址、内存访问、运算符优先级
 - [ ] FFI/变参语法（`...`）解析
-- [ ] 函数指针类型与类型表达式完整解析
-- [ ] 条件编译属性节点（`cfg/cfg_attr`）解析
-- [ ] Native-Strict x86 专属语法（`lea[...]`、限制式写法）解析
-- [ ] Loose 模式语法节点（if/while/for）解析 --- 先不做
+- [ ] native-strict x86 专属语法（`lea[...]`、限制式写法）解析
+- [ ] 消灭通用 `E2999`，改为精确语法错误
 
-## 1.3 AST 契约与兼容性
+## 1.3 AST 契约
 
-- [ ] AST 节点字段完整对齐文档章节
-- [ ] AST schema 版本化（避免后续 breaking 影响工具链）
-- [ ] AST 打印器稳定化（snapshot 友好）
-- [ ] AST visitor 能覆盖所有节点分支
+- [ ] AST 节点字段对齐文档章节
+- [ ] AST schema 版本化（避免工具链被破坏）
+- [ ] AST visitor 覆盖所有节点分支
+- [ ] AST 打印器稳定（snapshot 友好）
 
-## 1.4 解析器测试矩阵
+## 1.4 验收（目标一）
 
-- [ ] 每个章节至少 1 个 parser fixture
-- [ ] `docs/` 示例自动抽取并跑 parse smoke test
-- [ ] 负例测试（缺失 `uses`、类型不匹配、非法别名等）
-- [ ] 错误恢复路径测试（解析不中断）
-
-## 1.5 验收标准（目标一）
-
-- [ ] `docs/std-strict` 全部示例可 parse 成 AST
-- [ ] `docs/native-strict/x86` 全部示例可 parse 成 AST
-- [ ] parser 对未实现语法不再返回通用 `E2999`
+- [ ] `docs/std-strict` 示例全部可 parse
+- [ ] `docs/native-strict/x86` 示例全部可 parse
+- [ ] 非法输入下 parser 可恢复并继续解析到文件末尾
 
 ---
 
-## 2. 目标二：能编译到 x86-strict，并最终生成可执行文件
+## 2. `P1-基础` 语义与 SSA-IR 骨架（为 Windows 可执行链路做前置）
 
-## 2.1 语义分析补全
+> 与 `c:\\Users\\Anri\\.cursor\\plans\\aperio-ssa-v1-plan_4c4b3237.plan.md` 对齐，作为当前主干架构。
 
-- [ ] 符号表与作用域（模块、函数、局部）
-- [ ] 类型系统规则全量实现（含指针、函数指针、转换）
-- [ ] 别名语义完整实现（文件/签名/函数体层级）
-- [ ] Dreg 类型流与合并点检查完整实现
-- [ ] ABI 合规检查（Std-Strict + Native-Strict x86）
-- [ ] 模式守卫补全（`.ap/.x86.ap/.apo`）
+## 2.1 语义分析
 
-## 2.2 Lowering 与中间表示（IR）
+- [ ] 符号表与作用域（模块/函数/局部）
+- [ ] 类型系统规则（指针、函数指针、转换）
+- [ ] alias 语义（文件/签名/函数体）与冲突检查
+- [ ] Dreg 类型流与合并点检查
+- [ ] 模式守卫（`.ap/.x86.ap/.apo`）
 
-- [ ] 设计可执行的 IR 指令集（非 stub）
-- [ ] AST -> IR lowering（含控制流、调用、内存、返回）
-- [ ] IR 验证器（基本块、终结指令、类型一致性）
+## 2.2 IR v1（SSA-first）
 
-## 2.3 x86-strict 代码生成
+- [ ] 定义 `module/function/block/value/instruction` 核心模型
+- [ ] 终结指令强约束（每个 block 必须以 terminator 结束）
+- [ ] 采用“块参数”表达 phi（前端不暴露显式 phi）
+- [ ] AST -> IR 最小 lowering（函数、跳转、调用、返回）
+- [ ] IR verifier：连通性、SSA 唯一赋值、类型一致性
 
-- [ ] 指令选择（两操作数约束、lea、mul/div 固定槽）
-- [ ] 调用约定映射（System V AMD64）
-- [ ] 寄存器分配（先线性扫描，再优化）
-- [ ] spill/reload 与栈帧管理
-- [ ] 文本汇编输出（`.s`）
+## 2.3 验收（目标二前置）
 
-## 2.4 产物链路（可执行）
+- [ ] 至少 3 个控制流样例可 lowering 到 IR 并通过 verifier
+- [ ] parser/semantic/ir 的 diagnostics 输出风格一致
 
-- [ ] 路径 A：调用系统汇编器/链接器（`clang/gcc/ld`）产出可执行
-- [ ] 路径 B：内置最小对象文件生成 + 链接（后续可选）
-- [ ] `aperio build --emit asm|obj|exe` 统一接口
-- [ ] 跨平台行为定义（Windows/Linux 至少一种先稳定）
+## 2.4 SSA v1 分阶段执行（从 plan 整理迁移）
 
-## 2.5 验收标准（目标二）
+### Phase 1: Parser 覆盖核心文档语法
 
-- [ ] `hello.ap` -> `.s` -> 可执行 -> 正确退出码
-- [ ] 至少 3 个综合样例可执行（含函数调用、内存访问、分支）
-- [ ] Native-Strict x86 示例可通过完整链路
+- [ ] 在 `packages/core/src/parser/parser.ts` 保持主循环稳定并扩展 rule 分发
+- [ ] 在 `packages/core/src/parser/rules/function.ts`、`rules/expr.ts` 覆盖 `uses`、命名参数调用、多返回赋值、alias 声明入口
+- [ ] 在 `packages/core/src/parser/state.ts` 增加细粒度错误构造，逐步替换通用 `E2999`
 
----
+### Phase 2: AST/语义契约对齐（为 SSA 铺路）
 
-## 3. 目标三：语法糖处理层（Desugar Layer）
+- [ ] 在 `packages/core/src/ast` 补齐控制流合流所需节点（块、跳转参数、返回值组）
+- [ ] 在 `packages/core/src/semantic/index.ts` 固化 pass 顺序：`aliases -> types -> dreg`
+- [ ] 为 alias 与寄存器类型覆盖增加一致性检查，减少延迟错误
 
-> 你提到的 `alias`、调用便捷写法等，建议单独建 “Desugar/Lowering Front Layer”，和 parser/semantic 解耦。
+### Phase 3: IR v1（SSA-first）骨架
 
-## 3.1 设计与边界
+- [ ] 在 `packages/core/src/ir` 落地 `module/function/block/value/instruction` 五类模型
+- [ ] 强约束：每个 block 必须以 terminator 结束
+- [ ] phi 采用“块参数”建模（IR 内等价）
+- [ ] 在 `packages/core/src/ir/index.ts` 导出稳定 API（供 lowering/verifier/backend 共享）
 
-- [ ] 定义“核心语法”与“语法糖语法”的边界
-- [ ] 新增 Desugar AST Pass（AST in -> AST out）
-- [ ] 每条语法糖提供可追踪映射（便于报错与调试）
+### Phase 4: Lowering + IR 验证器
 
-## 3.2 首批语法糖候选
+- [ ] 新增 AST -> IR lowering（建议目录：`packages/core/src/lowering`）
+- [ ] 最小支持：函数、基础算术、条件跳转、调用、返回
+- [ ] 新增 IR verifier：连通性、terminator、SSA 唯一赋值、类型一致性
+- [ ] parser/semantic/ir 诊断统一接入 diagnostics 输出链路
 
-- [ ] alias 语法降级为显式槽引用元数据
-- [ ] 命名参数调用统一降级为位置化内部表示
-- [ ] 多返回赋值规范化（如除法双返回）
-- [ ] 宏调用前的预规范化（仅语法形态）
+### Phase 5: 后端互操作预留（不做完整实现）
 
-## 3.3 与 Rust 的实现思路对齐（工程方式，不抄语义）
+- [ ] 在 `packages/core/src/codegen/x86/regalloc.ts` 对齐 IR Value/Block 结构输入
+- [ ] 在 `ARCHITECTURE.md` 固化 “SSA -> 物理寄存器” 边界策略（de-ssa 或分配期并入 copy coalescing）
 
-- [ ] Parser 生成“接近用户书写”的 AST
-- [ ] HIR-like 中间层承接 desugar（Aperio 可命名 `MIR-front`）
-- [ ] Type-check 以后再进后端 IR（错误定位更友好）
+### 数据流（实现参考）
 
-## 3.4 验收标准（目标三）
+```mermaid
+flowchart LR
+sourceCode["AperioSource"] --> lexer["Lexer"]
+lexer --> parser["ParserAST"]
+parser --> semantic["SemanticCheckedAST"]
+semantic --> lowering["Lowering"]
+lowering --> irSsa["IRv1SSA"]
+irSsa --> verifier["IRVerifier"]
+verifier --> x86Hook["x86BackendHook"]
+verifier --> llvmHook["LLVMHook"]
+```
 
-- [ ] `--dump-ast` 与 `--dump-desugared` 均可输出
-- [ ] desugar 前后语义一致性测试通过
-- [ ] 报错位置仍映射到原源码（非糖后代码）
+### SSA v1 验收补充
 
----
-
-## 4. 目标四：转 LLVM IR
-
-## 4.1 路线确认（当前建议）
-
-- [ ] 输出 LLVM IR（Aperio -> LLVM IR）作为后端选项
-- [ ] 可选输入 LLVM IR（LLVM IR -> Aperio IR）作为互操作扩展
-
-## 4.2 Aperio -> LLVM IR
-
-- [ ] 类型映射表（Aperio 类型 -> LLVM 类型）
-- [ ] 控制流与 SSA 构建
-- [ ] 调用约定与外部符号映射
-- [ ] 内存与指针语义映射
-- [ ] 内置函数/原语映射到 LLVM intrinsics
-
-## 4.3 LLVM IR -> Aperio（可选后置）
-
-- [ ] 解析 `.ll` 子集
-- [ ] lowering 到 Aperio IR
-- [ ] 不支持项清单（EH/coroutine/GC/vector intrinsics 等）
-
-## 4.4 验收标准（目标四）
-
-- [ ] `aperio build --emit llvm-ir` 输出可被 `llc/clang` 接受
-- [ ] 至少 2 个样例经 LLVM 工具链生成可执行
-- [ ] 诊断编号段 `E8xxx` 正式接入
+- [ ] `docs` 关键章节示例可 parse 并产出 AST
+- [ ] `regalloc` 可消费 IR 元信息（允许先返回 stub 结果）
+- [ ] 无新增 parser 死循环，错误恢复可持续到文件末尾
 
 ---
 
-## 5. 工程化与可维护性（贯穿全程）
+## 3. `P1-主目标` x86_windows 后端主线（项目当前核心）
 
-- [ ] 多包架构最终收敛：`core/cli/fmt/linter/fixer/pkg/codegen-x86` 各自边界清晰
-- [ ] 公共 API 稳定层（避免跨包随意互引）
-- [ ] 文档自动校验（章节示例可执行/可解析）
-- [ ] 性能基线（lexer/parser/codegen 基准）
-- [ ] release 流程（版本号、changelog、artifact）
+## 3.1 ABI Profile（Windows x64）
+
+- [ ] 参数寄存器：`rcx, rdx, r8, r9`（整数/指针）
+- [ ] 返回寄存器：`rax`（浮点走 `xmm0` 规则）
+- [ ] caller/callee-saved 集合定义（含 XMM 策略）
+- [ ] `shadow space`（32 bytes）规则落地
+- [ ] 栈 16-byte 对齐规则落地
+
+## 3.2 指令选择与汇编输出
+
+- [ ] 指令选择：两操作数约束、`lea`、`mul/div` 固定约束
+- [ ] 汇编输出格式锁定：`.s` + `.intel_syntax noprefix`
+- [ ] 文本段/数据段/符号可见性规则
+- [ ] 函数序言/尾声模板（含保存恢复与栈帧）
+
+## 3.3 产物链路（可执行）
+
+- [ ] `--emit asm` 输出 `.s`
+- [ ] `--emit obj` 通过工具链产出 `.obj`
+- [ ] `--emit exe` 链接生成 `.exe`
+- [ ] 首选 `clang` 驱动链路（后续再补其他工具链）
+
+## 3.4 验收（当前里程碑）
+
+- [ ] `hello.ap -> hello.s -> hello.obj -> hello.exe` 全链路通过
+- [ ] 至少 3 个样例可执行（调用、分支、内存访问）
+- [ ] native-strict x86 样例可通过完整链路
 
 ---
 
-## 6. 推荐执行顺序（建议）
+## 4. `P1-主目标` 寄存器分配（线性扫描先行，图染色后续）
 
-1. 先做目标一（parse 全覆盖）  
-2. 并行铺目标三（desugar 层最小骨架）  
-3. 再做目标二（真实 codegen + 可执行产物）  
-4. 最后做目标四（LLVM IR 输出，再考虑 LLVM IR 输入）
+> 目标：先稳定可用，再升级最优；但架构一开始就为图染色预留接口。
+
+## 4.1 线性扫描 v1（必须）
+
+- [ ] 设计 live interval 构建器（按 SSA value）
+- [ ] 物理寄存器集合按 reg class 建模（GPR/XMM 分离）
+- [ ] call-site 约束接入（caller-saved 污染）
+- [ ] spill/reload 插入与 spill slot 管理
+- [ ] move resolver（处理并行拷贝/块参数入口）
+- [ ] 与 `regalloc.ts` 对齐稳定输入输出契约
+
+## 4.2 为图染色预留（现在就做架构，不急实现）
+
+- [ ] 抽象 `RegAllocStrategy` 接口（`linear-scan`/`graph-coloring`）
+- [ ] 抽象 `InterferenceProvider` 与 `CoalescingHintProvider`
+- [ ] 保留 pre-coloring 入口（ABI 固定寄存器约束）
+- [ ] 保留 copy coalescing 结果回写接口
+- [ ] 保留 spill cost 模型扩展点（冷热路径权重）
+
+## 4.3 验收（寄存器分配阶段）
+
+- [ ] 在线性扫描下产物可执行且结果正确
+- [ ] spill 后生成代码仍满足 ABI 与栈对齐规则
+- [ ] 切换策略接口不需要改 instruction selector
 
 ---
 
-## 7. 立即下一步（我建议）
+## 5. `P2` Desugar 层（并行轻量推进）
 
-- [ ] 本周：把 `parser` 从“最小子集”推进到 `12_functions + 11_control_flow + 05_registers(alias)` 章节可解析
-- [ ] 同步新增对应 fixtures 与快照
-- [ ] 消灭通用 `E2999`，替换成精确语法错误
+- [ ] 定义核心语法与语法糖边界
+- [ ] 增加 Desugar pass（AST in -> AST out）
+- [ ] alias/命名参数/多返回赋值先做规范化
+- [ ] 保持源码映射，报错仍指向原始源码
+
+---
+
+## 6. `P3` LLVM IR（后置，不阻塞主线）
+
+- [ ] `Aperio -> LLVM IR` 仅做规划文档，不进主里程碑
+- [ ] 类型映射和调用约定映射仅保留设计草案
+- [ ] `E8xxx` 诊断号段预留，不强行落地
+
+---
+
+## 7. 与现有 SSA 计划的映射清单（必须同步）
+
+- [ ] `parser-core-coverage`：并入本文件第 1 节
+- [ ] `ast-semantic-contract`：并入本文件第 2.1/2.2 节
+- [ ] `ir-v1-model`：并入本文件第 2.2 节
+- [ ] `lowering-minimal`：并入本文件第 2.2 节
+- [ ] `ir-verifier`：并入本文件第 2.2/2.3 节
+- [ ] `backend-interop-hooks`：并入本文件第 3/4 节
+
+---
+
+## 8. 推荐执行顺序（按你当前目标重排）
+
+1. 先完成第 1 节（`P0`: Parser/AST 全覆盖）  
+2. 再完成第 2 节（`P1-基础`: 语义 + SSA IR + verifier）  
+3. 紧接第 3 节（`P1-主目标`: x86_windows 汇编与可执行链路）  
+4. 然后第 4 节（`P1-主目标`: 线性扫描寄存器分配，保留图染色接口）  
+5. `P2`：第 5 节 desugar 与工程化增强  
+6. `P3`：第 6 节 LLVM 相关继续后置
+
+---
+
+## 9. 立即下一步（本周）
+
+- [ ] 把 parser 推进到 `12_functions + 11_control_flow + 05_registers(alias)` 可解析
+- [ ] 完成 IR v1 最小模型与 verifier 空实现（先跑通接口）
+- [ ] 在 `codegen/x86` 新增 ABI profile（win64）与汇编 printer 框架
+- [ ] 更新 `regalloc.ts`：定义 `RegAllocStrategy` 与 linear-scan 输入输出类型
