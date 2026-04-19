@@ -63,4 +63,32 @@ describe("parser", () => {
     expect(result.diagnostics).toEqual([]);
     expect(result.file).toMatchSnapshot();
   });
+
+  it("parses extern ffi style with variadic", () => {
+    const src = [
+      "extern fn printf(fmt: u64, ...) -> i32",
+      "extern fn memcpy(dst: *u8, src: *u8, len: u64) -> (ret: *u8)",
+      "",
+    ].join("\n");
+    const tokens = lex(1, src).tokens;
+    const result = parseFile("ffi.ap", tokens);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.file).toMatchSnapshot();
+  });
+
+  it("does not emit generic E2999 for top-level unknown syntax", () => {
+    const src = "unknown_token\n";
+    const tokens = lex(1, src).tokens;
+    const result = parseFile("bad.ap", tokens);
+    expect(result.diagnostics.length).toBeGreaterThan(0);
+    expect(result.diagnostics.some((d) => d.code === "E2999")).toBe(false);
+  });
+
+  it("parses uses register range syntax", () => {
+    const src = "fn f(r1: i64) -> (r0: i64) uses (r3..=r5, r7..r9) { r0 = r1 }\n";
+    const tokens = lex(1, src).tokens;
+    const result = parseFile("uses_range.ap", tokens);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.file).toMatchSnapshot();
+  });
 });

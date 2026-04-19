@@ -11,6 +11,7 @@ import {
   parseValDecl,
   parseVarDecl,
 } from "./rules/index.js";
+import { recoverIndex } from "./recovery.js";
 import { ParserState } from "./state.js";
 import type { ParseResult } from "./types.js";
 
@@ -96,7 +97,9 @@ export function parseFile(path: string, tokens: Token[]): ParseResult {
       }
       continue;
     }
-    state.unsupported("top-level syntax is not implemented yet");
+    const tk = state.current();
+    state.error(tk, "E2005", "unsupported top-level declaration");
+    state.index = Math.min(recoverIndex(state.tokens, state.index + 1), state.tokens.length - 1);
   }
   return { file: state.fileUnit(), diagnostics: state.diagnostics };
 }
