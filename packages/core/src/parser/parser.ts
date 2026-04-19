@@ -1,5 +1,5 @@
 import type { Token } from "@aperio/lexer";
-import { parseFnDecl, parseImportDecl } from "./rules/index.js";
+import { parseExternFnDecl, parseFileAliasDecl, parseFnDecl, parseImportDecl } from "./rules/index.js";
 import { ParserState } from "./state.js";
 import type { ParseResult } from "./types.js";
 
@@ -13,6 +13,20 @@ export function parseFile(path: string, tokens: Token[]): ParseResult {
     }
     if (state.matchKeyword("import")) {
       const node = parseImportDecl(state);
+      if (node) {
+        state.items.push(node);
+      }
+      continue;
+    }
+    if (state.matchKeyword("alias")) {
+      const node = parseFileAliasDecl(state);
+      if (node) {
+        state.items.push(node);
+      }
+      continue;
+    }
+    if (state.peekKeyword("extern") || (state.peekKeyword("pub") && state.checkKeyword("extern", 1))) {
+      const node = parseExternFnDecl(state);
       if (node) {
         state.items.push(node);
       }

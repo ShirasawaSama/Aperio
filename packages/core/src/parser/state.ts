@@ -82,6 +82,11 @@ export class ParserState {
     return tk?.kind === "Keyword" && tk.text === text;
   }
 
+  public checkKeyword(text: string, offset = 0): boolean {
+    const tk = this.peek(offset);
+    return tk?.kind === "Keyword" && tk.text === text;
+  }
+
   public matchSymbol(text: string): boolean {
     const tk = this.current();
     if (tk && tk.kind === "Symbol" && tk.text === text) {
@@ -89,6 +94,21 @@ export class ParserState {
       return true;
     }
     return false;
+  }
+
+  public checkSymbol(text: string, offset = 0): boolean {
+    const tk = this.peek(offset);
+    return tk?.kind === "Symbol" && tk.text === text;
+  }
+
+  public matchSymbolSequence(...symbols: string[]): boolean {
+    for (let i = 0; i < symbols.length; i += 1) {
+      if (!this.checkSymbol(symbols[i] as string, i)) {
+        return false;
+      }
+    }
+    this.index += symbols.length;
+    return true;
   }
 
   public matchNewline(): boolean {
@@ -110,8 +130,22 @@ export class ParserState {
     return undefined;
   }
 
+  public consumeSymbol(text: string, message: string): Token | undefined {
+    const tk = this.current();
+    if (tk && tk.kind === "Symbol" && tk.text === text) {
+      this.index += 1;
+      return tk;
+    }
+    this.error(tk, "E2001", message);
+    return undefined;
+  }
+
   public current(): Token | undefined {
     return this.tokens[this.index];
+  }
+
+  public peek(offset = 0): Token | undefined {
+    return this.tokens[this.index + offset];
   }
 
   public previous(): Token {
