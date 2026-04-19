@@ -30,9 +30,25 @@ cli
     process.exitCode = exitCode;
   });
 
-cli.command("build [files...]", "Build input files").action(async () => {
-  process.exitCode = await runBuild();
-});
+cli
+  .command("build [files...]", "Build input files")
+  .option("--emit <emit>", "asm", { default: "asm" })
+  .option("--format <format>", "human|json|lsp", { default: "human" })
+  .option("--mode <mode>", "auto|std|x86|loose", { default: "auto" })
+  .option("--target <target>", "win-x64", { default: "win-x64" })
+  .option("--out-dir <dir>", "output directory")
+  .action(async (files: string[] | string | undefined, options) => {
+    const fileList = Array.isArray(files) ? files : files ? [files] : [];
+    const emit = options.emit === "asm" ? "asm" : "asm";
+    const target = options.target === "win-x64" ? "win-x64" : "win-x64";
+    process.exitCode = await runBuild(fileList, {
+      emit,
+      format: parseOutputFormat(options.format),
+      mode: options.mode,
+      target,
+      outDir: options.outDir,
+    });
+  });
 
 cli.command("fmt [files...]", "Format files").action(async () => {
   process.exitCode = await runFmt();

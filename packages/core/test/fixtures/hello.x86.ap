@@ -1,0 +1,4 @@
+pub fn main() -> (r0: i32) {
+  r0 = 0
+  return r0
+}

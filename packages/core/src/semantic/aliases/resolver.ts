@@ -81,15 +81,16 @@ function validateAndAddBinding(
 ): void {
   const alias = binding.alias.text;
   const slot = binding.slot.name;
+  const isImplicitSlotAlias = alias === slot;
   if (!/^r\d+$|^f\d+$/.test(slot)) {
     diagnostics.push(makeDiag(binding, "E3005", `invalid slot '${slot}'`));
     return;
   }
-  if (RESERVED_ALIAS_NAMES.has(alias) || /^r\d+$|^f\d+$/.test(alias)) {
+  if (!isImplicitSlotAlias && (RESERVED_ALIAS_NAMES.has(alias) || /^r\d+$|^f\d+$/.test(alias))) {
     diagnostics.push(makeDiag(binding, "E3002", `reserved alias name '${alias}'`));
     return;
   }
-  if (table.lookupSlot(alias) !== undefined) {
+  if (!isImplicitSlotAlias && table.lookupSlot(alias) !== undefined) {
     diagnostics.push(makeDiag(binding, "E3002", `duplicate alias '${alias}'`));
     return;
   }
@@ -113,7 +114,8 @@ function validateRawSlotUsages(
         return;
       }
       const reg = node as RegRefExpr;
-      if (table.hasSlotInAnyScope(reg.name) && table.lookupName(reg.name) !== undefined) {
+      const aliasName = table.lookupName(reg.name);
+      if (table.hasSlotInAnyScope(reg.name) && aliasName !== undefined && aliasName !== reg.name) {
         diagnostics.push(
           makeDiag(reg, "E3001", `raw slot '${reg.name}' used where alias is active`),
         );

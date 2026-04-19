@@ -1,4 +1,7 @@
-import { runExplain } from "@aperio/cli";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { runBuild, runExplain } from "@aperio/cli";
 import { describe, expect, it, vi } from "vitest";
 
 describe("cli stubs", () => {
@@ -8,5 +11,26 @@ describe("cli stubs", () => {
     expect(code).toBe(0);
     expect(spy).toHaveBeenCalled();
     spy.mockRestore();
+  });
+
+  it("build emits win64 asm for native hello", async () => {
+    const outDir = await mkdtemp(join(tmpdir(), "aperio-build-"));
+    try {
+      const code = await runBuild(["packages/core/test/fixtures/hello.x86.ap"], {
+        emit: "asm",
+        format: "human",
+        mode: "auto",
+        target: "win-x64",
+        outDir,
+      });
+      expect(code).toBe(0);
+      const asmPath = join(outDir, "hello.s");
+      const asm = await readFile(asmPath, "utf8");
+      expect(asm).toContain(".intel_syntax noprefix");
+      expect(asm).toContain("main:");
+      expect(asm).toContain("ret");
+    } finally {
+      await rm(outDir, { recursive: true, force: true });
+    }
   });
 });

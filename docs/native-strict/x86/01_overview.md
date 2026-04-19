@@ -4,6 +4,12 @@ Native-Strict x86 是 Aperio 在 [Std-Strict](../../std-strict/README.md) 之下
 
 > **Native-Strict x86 = Std-Strict ∩ x86-64 硬件能力**
 
+## 章节实现状态
+
+- 解析（Parser）：`[~]` 部分完成（`.x86.ap` 已可走 native 模式并解析函数/控制流核心子集）
+- 语义（Semantic）：`[~]` 部分完成（native 寄存器范围守卫已接入）
+- 编译（Windows x86_64）：`[~]` 部分完成（已打通最小链路：`hello.x86.ap -> .s`）
+
 换句话说，能在 Native-Strict x86 里写的每一段代码，都是合法的 Std-Strict 代码；反过来不成立。Native-Strict 做的事情，是**把 Std-Strict 里那些编译器替你糊掉的硬件差异重新暴露出来**，让你看清楚每一条指令要占哪个物理寄存器、要遵循哪条调用约定。
 
 ## 文件扩展名与目标
