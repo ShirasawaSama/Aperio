@@ -1,0 +1,17 @@
+// Windows API-shaped std module.
+// Source names use snake_case; linker symbols use #[name="..."] mapping.
+
+#[name="ExitProcess"]
+extern fn exit_process(uExitCode: u32)
+
+#[name="GetStdHandle"]
+extern fn get_std_handle(nStdHandle: i32) -> u64
+
+#[name="WriteFile"]
+extern fn write_file(
+  hFile: u64,
+  lpBuffer: u64,
+  nNumberOfBytesToWrite: u32,
+  lpNumberOfBytesWritten: u64,
+  lpOverlapped: u64,
+) -> i32

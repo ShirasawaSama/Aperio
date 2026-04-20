@@ -35,6 +35,8 @@
       "@aperio/ir/*": ["packages/core/src/ir/*"],
       "@aperio/codegen/x86": ["packages/core/src/codegen/x86/index.ts"],
       "@aperio/codegen/x86/*": ["packages/core/src/codegen/x86/*"],
+      "@aperio/core": ["packages/core/src/index.ts"],
+      "@aperio/core/*": ["packages/core/src/*"],
       "@aperio/cli": ["packages/cli/src/index.ts"],
       "@aperio/cli/*": ["packages/cli/src/*"],
       "@aperio/fmt": ["packages/fmt/src/index.ts"],

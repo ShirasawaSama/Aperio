@@ -58,4 +58,28 @@ describe("cli stubs", () => {
       await rm(outDir, { recursive: true, force: true });
     }
   });
+
+  it("expands os macro aliases to winapi-shaped calls", async () => {
+    const outDir = await mkdtemp(join(tmpdir(), "aperio-build-macro-"));
+    try {
+      const code = await runBuild(["packages/core/test/fixtures/hello.macro.x86.ap"], {
+        emit: "asm",
+        format: "human",
+        mode: "auto",
+        target: "win-x64",
+        outDir,
+      });
+      expect(code).toBe(0);
+      const asmPath = join(outDir, "hello.macro.s");
+      const asm = await readFile(asmPath, "utf8");
+      expect(asm).toContain("call GetStdHandle");
+      expect(asm).toContain("call WriteFile");
+      expect(asm).toContain("call ExitProcess");
+      expect(asm).not.toContain("__macro_write_stdout");
+      expect(asm).not.toContain("unsupported os::write_stdout");
+      expect(asm).not.toContain("unsupported os::exit");
+    } finally {
+      await rm(outDir, { recursive: true, force: true });
+    }
+  });
 });

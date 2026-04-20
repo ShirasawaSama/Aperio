@@ -1,4 +1,5 @@
 export { parseFileAliasDecl } from "./alias.js";
+export { parseAttributeList } from "./attr.js";
 export {
   parseConstDecl,
   parseMacroDecl,

@@ -115,6 +115,40 @@ describe("parser", () => {
     expect(result.file).toMatchSnapshot();
   });
 
+  it("parses #[name = \"...\"] on extern fn for link symbol rename", () => {
+    const src = [
+      '#[name = "WriteFile"]',
+      "extern fn write_file(",
+      "  hFile: u64,",
+      "  lpBuffer: u64,",
+      "  nNumberOfBytesToWrite: u32,",
+      "  lpNumberOfBytesWritten: u64,",
+      "  lpOverlapped: u64",
+      ") -> i32",
+      "",
+    ].join("\n");
+    const tokens = lex(1, src).tokens;
+    const result = parseFile("win_extern.ap", tokens);
+    expect(result.diagnostics).toEqual([]);
+    const ext = result.file.items.find((i) => i.kind === "ExternFnDecl");
+    expect(ext?.kind).toBe("ExternFnDecl");
+    if (!ext || ext.kind !== "ExternFnDecl") {
+      return;
+    }
+    expect(ext.name.text).toBe("write_file");
+    expect(ext.attrs.length).toBe(1);
+    const attr = ext.attrs[0];
+    if (!attr) {
+      return;
+    }
+    expect(attr.name.text).toBe("name");
+    expect(attr.args[0]?.kind).toBe("LiteralExpr");
+    if (attr.args[0]?.kind === "LiteralExpr") {
+      expect(attr.args[0].literalKind).toBe("string");
+      expect(attr.args[0].value).toContain("WriteFile");
+    }
+  });
+
   it("rejects positional expression call args", () => {
     const src = [
       "fn callee(r0: i32, r1: i32) -> (r0: i32) {",

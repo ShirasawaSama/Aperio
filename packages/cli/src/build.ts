@@ -9,6 +9,7 @@ import {
   renderDiagnosticsLsp,
 } from "@aperio/diagnostics";
 import { emitNativeWin64FromAst, emitNativeWin64MasmFromAst } from "@aperio/codegen/x86";
+import { expandBuiltinMacros } from "@aperio/core";
 import { lex } from "@aperio/lexer";
 import { type AperioMode, guardMode, modeFromPath } from "@aperio/mode";
 import { parseFile } from "@aperio/parser";
@@ -50,7 +51,8 @@ export async function runBuild(files: string[], options: BuildOptions): Promise<
       continue;
     }
 
-    const asm = emitNativeWin64FromAst(parseResult.file);
+    const macroExpandedFile = expandBuiltinMacros(parseResult.file);
+    const asm = emitNativeWin64FromAst(macroExpandedFile);
     const asmPath = buildOutputPath(path, "asm", options.outDir);
     await mkdir(dirname(asmPath), { recursive: true });
     await writeFile(asmPath, asm, "utf8");
@@ -64,7 +66,7 @@ export async function runBuild(files: string[], options: BuildOptions): Promise<
     const asmResult = await runTool("clang", ["-c", asmPath, "-o", objPath]);
     const usedMsvcFallback = !asmResult.ok && isToolMissing(asmResult);
     if (usedMsvcFallback) {
-      const masmResult = await assembleWithMsvc(path, parseResult.file, objPath, options.outDir);
+      const masmResult = await assembleWithMsvc(path, macroExpandedFile, objPath, options.outDir);
       if (!masmResult.ok) {
         diagnostics.push(
           makeBuildDiag(

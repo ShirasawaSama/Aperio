@@ -11,5 +11,5 @@ export function isDigit(ch: string): boolean {
 }
 
 export function isSymbol(ch: string): boolean {
-  return "(){}[],:=+-*/@.&<>!".includes(ch);
+  return "(){}[],:=+-*/@.&<>!#".includes(ch);
 }

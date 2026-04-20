@@ -1,4 +1,4 @@
-import type { ExternFnDecl, FnDecl, SlotBinding, Stmt } from "@aperio/ast";
+import type { Attribute, ExternFnDecl, FnDecl, SlotBinding, Stmt } from "@aperio/ast";
 import { span } from "@aperio/diagnostics";
 import type { ParserState } from "../state.js";
 import { recoverIndex } from "../recovery.js";
@@ -7,8 +7,8 @@ import { parseSlotBinding, parseSlotBindingList, parseTypeExpr } from "./shared.
 
 // Parse function declarations with v1 strict signature subset:
 // `pub? fn name(params) -> returns uses (...) { body }`
-export function parseFnDecl(state: ParserState): FnDecl | undefined {
-  const start = state.current()?.span.start ?? 0;
+export function parseFnDecl(state: ParserState, leadingAttrs: Attribute[] = []): FnDecl | undefined {
+  const start = leadingAttrs[0]?.span.start ?? state.current()?.span.start ?? 0;
   state.matchKeyword("pub");
   if (!state.matchKeyword("fn")) {
     state.error(state.current(), "E2003", "expected 'fn'");
@@ -57,13 +57,13 @@ export function parseFnDecl(state: ParserState): FnDecl | undefined {
     params,
     returns,
     uses,
-    attrs: [],
+    attrs: [...leadingAttrs],
     body,
   };
 }
 
-export function parseExternFnDecl(state: ParserState): ExternFnDecl | undefined {
-  const start = state.current()?.span.start ?? 0;
+export function parseExternFnDecl(state: ParserState, leadingAttrs: Attribute[] = []): ExternFnDecl | undefined {
+  const start = leadingAttrs[0]?.span.start ?? state.current()?.span.start ?? 0;
   state.matchKeyword("pub");
   if (!state.matchKeyword("extern")) {
     state.error(state.current(), "E2020", "expected 'extern'");
@@ -92,7 +92,7 @@ export function parseExternFnDecl(state: ParserState): ExternFnDecl | undefined 
     params,
     returns,
     variadic,
-    attrs: [],
+    attrs: [...leadingAttrs],
   };
 }
 
@@ -145,6 +145,9 @@ function parseExternParams(
   const params: SlotBinding[] = [];
   let variadic = false;
   while (!state.at("Eof")) {
+    while (state.matchNewline()) {
+      // allow multiline extern parameter lists
+    }
     if (state.matchSymbol(")")) {
       break;
     }
@@ -154,6 +157,9 @@ function parseExternParams(
       break;
     }
     params.push(parseExternParam(state, params.length));
+    while (state.matchNewline()) {
+      // allow newline before separator
+    }
     if (state.matchSymbol(")")) {
       break;
     }
@@ -212,10 +218,16 @@ function parseExternReturns(state: ParserState): SlotBinding[] | undefined {
   if (state.matchSymbol("(")) {
     const items: SlotBinding[] = [];
     while (!state.at("Eof")) {
+      while (state.matchNewline()) {
+        // allow multiline extern return lists
+      }
       if (state.matchSymbol(")")) {
         break;
       }
       items.push(parseExternReturnItem(state, items.length));
+      while (state.matchNewline()) {
+        // allow newline before separator
+      }
       if (state.matchSymbol(")")) {
         break;
       }

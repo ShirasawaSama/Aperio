@@ -6,7 +6,7 @@
 
 - 解析（Parser）：`[~]` 部分完成（`import`、`extern fn`、变参 `...` 基础已支持）
 - 语义（Semantic）：`[ ]` 未开始（平台 API 合法性校验尚未实现）
-- 编译（Windows x86_64）：`[~]` 部分完成（最小 `std/os/win::exit` 与 `std/os/win::write_stdout` 调用已可发射到汇编）
+- 编译（Windows x86_64）：`[~]` 部分完成（最小 `std/os/win::ExitProcess/GetStdHandle/WriteFile` 调用已可发射到汇编）
 
 > 当前工具链状态：`--emit exe` 已接入。优先使用 `clang`，若不可用会自动回退到 VS 工具链（`ml64 + link + Windows Kits`）；建议在 **Developer PowerShell for VS** 中执行构建。
 
@@ -30,7 +30,7 @@ import "std/os" as os
 import "std/os/win" as os
 ```
 
-并优先使用 `os::exit(code = ...)`、`os::write_stdout(...)` 这类平台实现 API；`syscall` 在 Windows 上不作为主路径。
+并优先使用 snake_case 的平台 API 名（如 `os::exit_process(...)`、`os::get_std_handle(...)`、`os::write_file(...)`），再通过 `#[name = \"...\"]` 映射到 Win32 符号；`syscall` 在 Windows 上不作为主路径。
 
 ## API
 

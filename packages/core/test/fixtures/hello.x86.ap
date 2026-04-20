@@ -3,7 +3,9 @@ import "std/os/win" as os
 val MSG: u8[] = "Hello, world!\n"
 
 pub fn main() -> (r0: i32) {
-  os::write_stdout(ptr = MSG, len = 14)
-  os::exit(code = 0)
+  os::get_std_handle(nStdHandle = -11)
+  r1 = r0
+  os::write_file(hFile = r1, lpBuffer = MSG, nNumberOfBytesToWrite = 14, lpNumberOfBytesWritten = 0, lpOverlapped = 0)
+  os::exit_process(uExitCode = 0)
   r0 = 0
 }
