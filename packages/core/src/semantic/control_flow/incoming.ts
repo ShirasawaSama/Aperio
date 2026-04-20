@@ -1,5 +1,6 @@
 import type { Expr, SlotBinding } from "@aperio/ast";
 import type { Diagnostic, Span } from "@aperio/diagnostics";
+import { diagIncomingParamTypeMismatch, diagIncomingStateTypeMismatch } from "./diagnostics.js";
 import type { LabelIncomingEdge, LabelIncomingType, TypeState } from "./types.js";
 
 export function recordIncomingTypes(
@@ -27,18 +28,9 @@ export function recordIncomingTypes(
     if (previous.type === type) {
       continue;
     }
-    diagnostics.push({
-      code: "E4018",
-      severity: "error",
-      message: `inconsistent incoming type for label '${labelName}' parameter #${i + 1}`,
-      primary: {
-        span: arg.span,
-        message: `this edge passes ${type}, previous edge passed ${previous.type}`,
-      },
-      secondary: [{ span: previous.span, message: `previous incoming type: ${previous.type}` }],
-      notes: ["all incoming edges to the same label parameter should agree on logical type"],
-      fixes: [],
-    });
+    diagnostics.push(
+      diagIncomingParamTypeMismatch(labelName, i, type, previous.type, arg.span, previous.span),
+    );
   }
   incoming.set(labelName, byIndex);
 }
@@ -83,18 +75,17 @@ export function validateIncomingStateMerges(
         if (baseline.type === type) {
           continue;
         }
-        diagnostics.push({
-          code: "E4019",
-          severity: "error",
-          message: `inconsistent incoming state type for label '${labelName}' slot '${slot}'`,
-          primary: {
-            span: edge.span,
-            message: `edge '${edge.kind}' has ${type}, previous edge has ${baseline.type}`,
-          },
-          secondary: [{ span: baseline.span, message: `previous incoming type: ${baseline.type}` }],
-          notes: ["ensure all incoming edges agree on non-parameter register logical types"],
-          fixes: [],
-        });
+        diagnostics.push(
+          diagIncomingStateTypeMismatch(
+            labelName,
+            slot,
+            edge.kind,
+            type,
+            baseline.type,
+            edge.span,
+            baseline.span,
+          ),
+        );
       }
     }
   }

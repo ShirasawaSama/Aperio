@@ -1,5 +1,6 @@
 import type { Expr, SlotBinding } from "@aperio/ast";
 import type { Diagnostic, Span } from "@aperio/diagnostics";
+import { diagBranchMergeTypeMismatch } from "./diagnostics.js";
 import { inferExprType } from "../types/infer.js";
 import type { TypeState } from "./types.js";
 
@@ -43,20 +44,7 @@ export function reportBranchTypeConflicts(
     if (!thenType || !elseType || thenType === elseType) {
       continue;
     }
-    diagnostics.push({
-      code: "E4017",
-      severity: "error",
-      message: `branch merge type mismatch on '${slot}'`,
-      primary: {
-        span,
-        message: `then branch is ${thenType}, else branch is ${elseType}`,
-      },
-      secondary: [],
-      notes: [
-        "assign the same logical type on both branches, or cast explicitly before merge",
-      ],
-      fixes: [],
-    });
+    diagnostics.push(diagBranchMergeTypeMismatch(slot, thenType, elseType, span));
   }
 }
 

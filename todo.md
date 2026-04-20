@@ -53,7 +53,7 @@ loose 层继续暂缓。
 
 ## 1.4 验收（目标一）
 
-- [ ] `docs/std-strict` 示例全部可 parse
+- [~] `docs/std-strict` 示例可 parse（已接入 05/11/12 章节代码块采样回归，后续扩展到全章节）
 - [ ] `docs/native-strict/x86` 示例全部可 parse
 - [ ] 非法输入下 parser 可恢复并继续解析到文件末尾
 

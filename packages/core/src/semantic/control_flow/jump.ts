@@ -1,5 +1,6 @@
 import type { Expr } from "@aperio/ast";
 import type { Diagnostic, Span } from "@aperio/diagnostics";
+import { diagGotoIntoInner, diagLabelArgTypeMismatch, diagLabelArityMismatch } from "./diagnostics.js";
 import { recordIncomingTypes, recordLabelIncomingState } from "./incoming.js";
 import type { LabelIncomingEdge, LabelIncomingType, LabelInfo, TypeState } from "./types.js";
 
@@ -21,27 +22,11 @@ export function checkJump(
   }
 
   if (sourceDepth < target.depth) {
-    diagnostics.push({
-      code: "E4010",
-      severity: "error",
-      message: `goto cannot jump into inner block label '${labelName}'`,
-      primary: { span: target.span, message: "target label is inside a nested block" },
-      secondary: [],
-      notes: ["goto can only jump to labels in the same or outer block"],
-      fixes: [],
-    });
+    diagnostics.push(diagGotoIntoInner(labelName, target.span));
   }
 
   if (args.length !== target.params.length) {
-    diagnostics.push({
-      code: "E4011",
-      severity: "error",
-      message: `label '${labelName}' expects ${target.params.length} argument(s), got ${args.length}`,
-      primary: { span: target.span, message: "label parameter arity mismatch" },
-      secondary: [],
-      notes: [],
-      fixes: [],
-    });
+    diagnostics.push(diagLabelArityMismatch(labelName, target.params.length, args.length, target.span));
     return;
   }
 
@@ -53,15 +38,7 @@ export function checkJump(
     }
     const actual = state.get(arg.name);
     if (actual && actual !== expected) {
-      diagnostics.push({
-        code: "E4012",
-        severity: "error",
-        message: `label argument type mismatch for '${labelName}'`,
-        primary: { span: arg.span, message: `expected ${expected}, got ${actual}` },
-        secondary: [],
-        notes: [],
-        fixes: [],
-      });
+      diagnostics.push(diagLabelArgTypeMismatch(labelName, expected, actual, arg.span));
     }
   }
 
