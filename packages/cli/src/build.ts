@@ -9,12 +9,10 @@ import {
   renderDiagnosticsLsp,
 } from "@aperio/diagnostics";
 import { emitNativeWin64FromAst, emitNativeWin64MasmFromAst } from "@aperio/codegen/x86";
-import { expandBuiltinMacros } from "@aperio/core";
-import { findStdlibRootNearEntry, mergeCompilationUnit } from "@aperio/core";
+import { findStdlibRootNearEntry, mergeCompilationUnit, runMidendPipeline } from "@aperio/core";
 import { lex } from "@aperio/lexer";
-import { type AperioMode, guardMode, modeFromPath } from "@aperio/mode";
+import { type AperioMode, modeFromPath } from "@aperio/mode";
 import { parseFile } from "@aperio/parser";
-import { runSemantic } from "@aperio/semantic";
 import { SourceManager } from "@aperio/source";
 import type { OutputFormat } from "./format_opt.js";
 
@@ -83,9 +81,8 @@ export async function runBuild(files: string[], options: BuildOptions): Promise<
     }
 
     const mode = options.mode === "auto" ? modeFromPath(path) : options.mode;
-    diagnostics.push(...guardMode(programFile, mode));
-    const macroExpandedFile = expandBuiltinMacros(programFile);
-    diagnostics.push(...runSemantic(macroExpandedFile).diagnostics);
+    const { expanded: macroExpandedFile, diagnostics: midendDiags } = runMidendPipeline(programFile, mode);
+    diagnostics.push(...midendDiags);
     const fileDiags = diagnostics.slice(fileDiagStart);
     if (fileDiags.some((d) => d.severity === "error")) {
       continue;

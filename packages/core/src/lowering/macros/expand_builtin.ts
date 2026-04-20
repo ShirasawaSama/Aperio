@@ -1,5 +1,5 @@
 import type { CallArg, CallStmt, FileUnit, FnDecl, IdentExpr, Item, Stmt } from "@aperio/ast";
-import { splitImportQualifiedCallee } from "../../semantic/calls/qualified_calls.js";
+import { splitImportQualifiedCallee } from "../../syntax/qualified_name.js";
 
 /** Built-in statement macros before codegen (preserves `import … as` prefix on callee). */
 export function expandBuiltinMacros(file: FileUnit): FileUnit {

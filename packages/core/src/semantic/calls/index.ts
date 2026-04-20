@@ -1,1 +1,2 @@
-export { checkQualifiedCalls, splitImportQualifiedCallee } from "./qualified_calls.js";
+export { checkQualifiedCalls } from "./qualified_calls.js";
+export { splitImportQualifiedCallee } from "../../syntax/qualified_name.js";
