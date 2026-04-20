@@ -17,6 +17,11 @@ interface FnSig {
   params: ParamInfo[];
 }
 
+interface LabelIncomingType {
+  type: string;
+  span: Span;
+}
+
 type TypeState = Map<string, string>;
 
 export function checkControlFlow(file: FileUnit): Diagnostic[] {
@@ -36,9 +41,10 @@ export function checkControlFlow(file: FileUnit): Diagnostic[] {
 function checkFunction(fn: FnDecl, signatures: Map<string, FnSig>): Diagnostic[] {
   const diagnostics: Diagnostic[] = [];
   const labels = new Map<string, LabelInfo>();
+  const incoming = new Map<string, Map<number, LabelIncomingType>>();
   collectLabels(fn.body, 0, labels);
   const initial = buildInitialTypeState(fn);
-  checkStmtList(fn.body, 0, initial, labels, signatures, diagnostics);
+  checkStmtList(fn.body, 0, initial, labels, signatures, incoming, diagnostics);
   return diagnostics;
 }
 
@@ -97,6 +103,7 @@ function checkStmtList(
   state: TypeState,
   labels: Map<string, LabelInfo>,
   signatures: Map<string, FnSig>,
+  incoming: Map<string, Map<number, LabelIncomingType>>,
   diagnostics: Diagnostic[],
 ): void {
   for (const stmt of stmts) {
@@ -114,23 +121,23 @@ function checkStmtList(
         applyLabelTypeReset(stmt.params, state);
         break;
       case "GotoStmt":
-        checkJump(stmt.label.text, stmt.args, depth, state, labels, diagnostics);
+        checkJump(stmt.label.text, stmt.args, depth, state, labels, incoming, diagnostics);
         break;
       case "IfGotoStmt":
-        checkJump(stmt.target.text, stmt.args, depth, state, labels, diagnostics);
+        checkJump(stmt.target.text, stmt.args, depth, state, labels, incoming, diagnostics);
         break;
       case "SaveStmt": {
         const snapshot = new Map(state);
         const inner = new Map(state);
-        checkStmtList(stmt.body, depth + 1, inner, labels, signatures, diagnostics);
+        checkStmtList(stmt.body, depth + 1, inner, labels, signatures, incoming, diagnostics);
         restoreSnapshot(state, snapshot);
         break;
       }
       case "IfStmt": {
         const thenState = new Map(state);
         const elseState = new Map(state);
-        checkStmtList(stmt.thenBody, depth + 1, thenState, labels, signatures, diagnostics);
-        checkStmtList(stmt.elseBody, depth + 1, elseState, labels, signatures, diagnostics);
+        checkStmtList(stmt.thenBody, depth + 1, thenState, labels, signatures, incoming, diagnostics);
+        checkStmtList(stmt.elseBody, depth + 1, elseState, labels, signatures, incoming, diagnostics);
         reportBranchTypeConflicts(stmt.span, thenState, elseState, diagnostics);
         mergeBranchState(state, thenState, elseState);
         break;
@@ -160,6 +167,7 @@ function checkJump(
   sourceDepth: number,
   state: TypeState,
   labels: Map<string, LabelInfo>,
+  incoming: Map<string, Map<number, LabelIncomingType>>,
   diagnostics: Diagnostic[],
 ): void {
   const target = labels.get(labelName);
@@ -211,6 +219,49 @@ function checkJump(
       });
     }
   }
+
+  recordIncomingTypes(labelName, args, state, incoming, diagnostics);
+}
+
+function recordIncomingTypes(
+  labelName: string,
+  args: Expr[],
+  state: TypeState,
+  incoming: Map<string, Map<number, LabelIncomingType>>,
+  diagnostics: Diagnostic[],
+): void {
+  const byIndex = incoming.get(labelName) ?? new Map<number, LabelIncomingType>();
+  for (let i = 0; i < args.length; i += 1) {
+    const arg = args[i];
+    if (!arg || arg.kind !== "RegRefExpr") {
+      continue;
+    }
+    const type = state.get(arg.name);
+    if (!type) {
+      continue;
+    }
+    const previous = byIndex.get(i);
+    if (!previous) {
+      byIndex.set(i, { type, span: arg.span });
+      continue;
+    }
+    if (previous.type === type) {
+      continue;
+    }
+    diagnostics.push({
+      code: "E4018",
+      severity: "error",
+      message: `inconsistent incoming type for label '${labelName}' parameter #${i + 1}`,
+      primary: {
+        span: arg.span,
+        message: `this edge passes ${type}, previous edge passed ${previous.type}`,
+      },
+      secondary: [{ span: previous.span, message: `previous incoming type: ${previous.type}` }],
+      notes: ["all incoming edges to the same label parameter should agree on logical type"],
+      fixes: [],
+    });
+  }
+  incoming.set(labelName, byIndex);
 }
 
 function checkCallRuleA(

@@ -173,4 +173,26 @@ describe("parser", () => {
     const semantic = runSemantic(parsed.file);
     expect(semantic.diagnostics.some((d) => d.code === "E4017")).toBe(true);
   });
+
+  it("reports inconsistent incoming types on label parameters", () => {
+    const src = [
+      "fn label_merge_bad(r1: i32, r2: i32) -> (r0: i32) {",
+      "  if (r1 > r2) {",
+      "    r3 = 1",
+      "    goto(@join(r3))",
+      "  } else {",
+      "    r3 = true",
+      "    goto(@join(r3))",
+      "  }",
+      "@join(r3):",
+      "  r0 = r1",
+      "}",
+      "",
+    ].join("\n");
+    const tokens = lex(1, src).tokens;
+    const parsed = parseFile("label_merge_bad.ap", tokens);
+    expect(parsed.diagnostics).toEqual([]);
+    const semantic = runSemantic(parsed.file);
+    expect(semantic.diagnostics.some((d) => d.code === "E4018")).toBe(true);
+  });
 });
