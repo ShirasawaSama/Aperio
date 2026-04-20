@@ -195,9 +195,10 @@ import "unknown-pkg" as u                           // 编译错：E5003 unknown
 
 ## 工具链实现状态（import 合并）
 
+- **`@aperio/core`：`prepareProgramFromSource`**：单入口管线封装——对已登记在 `SourceManager` 上的入口文件执行 `lex` → `parseFile` →（若可解析 `stdlib/` 或仅有相对 `import`）`mergeCompilationUnit` → `runMidendPipeline`。若入口含 `import "std/…"` 但找不到 `stdlib/` 根，默认**不**追加额外诊断（与 `check` / `ast` 一致）；`build` 通过 `missingStdlibBehavior: { diagnostic }` 注入 **E7001** 类提示。返回值含 **`lexParseHadError`**（仅词法/解析阶段是否已有 error），供 `ast` 在仅前端失败时输出 `[]` 而不打印半成品 AST。
 - **CLI `build` / `check`**：若入口文件含 `import`，会从入口路径向上查找 `stdlib/std/os/win.ap` 以定位 `stdlib/` 根目录（否则尝试 `cwd/stdlib`），再按 BFS 加载 `std/…` 与 `./`、`../` 依赖；将依赖模块的顶层声明（除 `fn` 与 `import` 行本身）拼入同一 `FileUnit` 供后续语义与 codegen 使用。重复顶层符号报 **E5013**；找不到文件报 **E5012**；不支持的 import 方案报 **E5011**。
 - **解析器**：`parseFile` 支持链式 `nextNodeIdStart` / 返回 `nextNodeIdExclusive`，避免多文件合并后 AST 节点 id 冲突。
-- **内置宏与语义**：`expandBuiltinMacros`（如 `…::exit` → `…::exit_process`）在 **`runSemantic` 之前**执行，且展开时**保留** `import … as` 的前缀；语义阶段对 `alias::name` 做顶层解析，未知符号报 **E5020**（宏名、`__macro_*` 合成调用除外）。`aperio build` / `check` / **`ast`** 共用同一套 **import 合并**（若能定位 `stdlib/`）与 **`runMidendPipeline`**（`guardMode` → `expandBuiltinMacros` → `runSemantic`）；`ast` 打印的是**合并并过中端之后**的 `FileUnit` JSON。
+- **内置宏与语义**：`expandBuiltinMacros`（如 `…::exit` → `…::exit_process`）在 **`runSemantic` 之前**执行，且展开时**保留** `import … as` 的前缀；语义阶段对 `alias::name` 做顶层解析，未知符号报 **E5020**（宏名、`__macro_*` 合成调用除外）。`aperio build` / `check` / **`ast`** 均通过 **`prepareProgramFromSource`** 共用 **import 合并**（若能定位 `stdlib/`，或仅有相对路径 `import` 时仍合并）与 **`runMidendPipeline`**（`guardMode` → `expandBuiltinMacros` → `runSemantic`）；`ast` 打印的是**合并并过中端之后**的 `FileUnit` JSON。
 
 完整的包管理规则（清单格式、版本语义、MVS 解析、锁文件、缓存）在独立的《Aperio 包管理器》文档里：
 
