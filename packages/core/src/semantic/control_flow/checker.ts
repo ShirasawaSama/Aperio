@@ -131,6 +131,7 @@ function checkStmtList(
         const elseState = new Map(state);
         checkStmtList(stmt.thenBody, depth + 1, thenState, labels, signatures, diagnostics);
         checkStmtList(stmt.elseBody, depth + 1, elseState, labels, signatures, diagnostics);
+        reportBranchTypeConflicts(stmt.span, thenState, elseState, diagnostics);
         mergeBranchState(state, thenState, elseState);
         break;
       }
@@ -306,6 +307,36 @@ function mergeBranchState(base: TypeState, thenState: TypeState, elseState: Type
     if (elseType && elseType === thenType) {
       base.set(slot, thenType);
     }
+  }
+}
+
+function reportBranchTypeConflicts(
+  span: Span,
+  thenState: TypeState,
+  elseState: TypeState,
+  diagnostics: Diagnostic[],
+): void {
+  const slots = new Set<string>([...thenState.keys(), ...elseState.keys()]);
+  for (const slot of slots) {
+    const thenType = thenState.get(slot);
+    const elseType = elseState.get(slot);
+    if (!thenType || !elseType || thenType === elseType) {
+      continue;
+    }
+    diagnostics.push({
+      code: "E4017",
+      severity: "error",
+      message: `branch merge type mismatch on '${slot}'`,
+      primary: {
+        span,
+        message: `then branch is ${thenType}, else branch is ${elseType}`,
+      },
+      secondary: [],
+      notes: [
+        "assign the same logical type on both branches, or cast explicitly before merge",
+      ],
+      fixes: [],
+    });
   }
 }
 

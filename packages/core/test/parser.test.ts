@@ -154,4 +154,23 @@ describe("parser", () => {
     expect(semantic.diagnostics.some((d) => d.code === "E4010")).toBe(true);
     expect(semantic.diagnostics.some((d) => d.code === "E4016")).toBe(true);
   });
+
+  it("reports if-else merge type mismatch", () => {
+    const src = [
+      "fn merge_bad(r1: i32, r2: i32) -> (r0: i32) {",
+      "  if (r1 > r2) {",
+      "    r3 = 1",
+      "  } else {",
+      "    r3 = true",
+      "  }",
+      "  r0 = r1",
+      "}",
+      "",
+    ].join("\n");
+    const tokens = lex(1, src).tokens;
+    const parsed = parseFile("merge_bad.ap", tokens);
+    expect(parsed.diagnostics).toEqual([]);
+    const semantic = runSemantic(parsed.file);
+    expect(semantic.diagnostics.some((d) => d.code === "E4017")).toBe(true);
+  });
 });
