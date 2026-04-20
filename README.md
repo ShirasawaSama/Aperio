@@ -85,6 +85,11 @@ pub fn repeat_print(
     dbg::assert!(n > 0u64, "n must be > 0")
 
     i = 0u64
+    save(i) {
+        i = 1u64
+    }
+    // i == 0
+
 @loop(i: u64):
     if (i >= n) goto(@done)
     io::println!("hello from aperio: {}", msg)
