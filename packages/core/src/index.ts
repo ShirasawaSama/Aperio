@@ -10,6 +10,8 @@ export * from "./ir/index.js";
 export * as ir from "./ir/index.js";
 export * from "./lexer/index.js";
 export * as lexer from "./lexer/index.js";
+export * from "./lowering/index.js";
+export * as lowering from "./lowering/index.js";
 export * from "./mode/index.js";
 export * as mode from "./mode/index.js";
 export * from "./parser/index.js";
