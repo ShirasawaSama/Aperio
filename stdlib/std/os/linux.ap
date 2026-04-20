@@ -1,0 +1,10 @@
+// POSIX / libc-shaped Linux module (declaration-only until import merge + lowering).
+
+#[name="write"]
+extern fn write(fd: i32, buf: u64, count: u64) -> i64
+
+#[name="read"]
+extern fn read(fd: i32, buf: u64, count: u64) -> i64
+
+#[name="_exit"]
+extern fn exit_raw(status: i32)

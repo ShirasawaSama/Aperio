@@ -1,0 +1,3 @@
+// Atomic primitives are builtins; see docs/std-strict/29_std_atomic.md.
+
+const _STD_ATOMIC_MODULE: u32 = 0

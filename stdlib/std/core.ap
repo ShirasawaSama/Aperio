@@ -1,0 +1,4 @@
+// Builtins such as `select` are compiler-provided; this file anchors `import "std/core"`.
+// See docs/std-strict/25_std_core.md.
+
+const _STD_CORE_MODULE: u32 = 0

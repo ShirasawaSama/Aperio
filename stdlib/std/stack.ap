@@ -1,0 +1,3 @@
+// Stack allocation (`alloc`) is a builtin; see docs/std-strict/32_std_stack.md.
+
+const _STD_STACK_MODULE: u32 = 0

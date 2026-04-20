@@ -1,0 +1,3 @@
+// Non-trivial numeric conversions are builtins; see docs/std-strict/28_std_convert.md.
+
+const _STD_CONVERT_MODULE: u32 = 0

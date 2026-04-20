@@ -1,0 +1,3 @@
+// Bit-count / byte-swap builtins; see docs/std-strict/30_std_bits.md.
+
+const _STD_BITS_MODULE: u32 = 0

@@ -1,0 +1,14 @@
+// assert! / panic! / static_assert! / unreachable! — macro surface for parse regression.
+// See docs/std-strict/27_std_debug.md.
+
+macro assert!(cond: expr) {
+}
+
+macro panic!(fmt: literal) {
+}
+
+macro static_assert!(cond: expr, msg: literal) {
+}
+
+macro unreachable!(reason: literal) {
+}

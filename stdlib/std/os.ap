@@ -1,0 +1,4 @@
+// Cross-platform `std/os` facade placeholder.
+// After `import` merges into one compilation unit, wire this to `std/os/win`, `std/os/linux`, etc.
+
+const _STD_OS_MODULE: u32 = 0

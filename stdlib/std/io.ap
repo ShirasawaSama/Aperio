@@ -1,0 +1,16 @@
+// std/io — format-print macros; bodies are skipped at parse time (see docs/std-strict/26_std_io.md).
+
+macro println!(fmt: literal) {
+}
+
+macro print!(fmt: literal) {
+}
+
+macro eprintln!(fmt: literal) {
+}
+
+macro eprint!(fmt: literal) {
+}
+
+macro dbg!(e: expr) {
+}
