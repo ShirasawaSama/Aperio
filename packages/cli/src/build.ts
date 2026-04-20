@@ -84,7 +84,8 @@ export async function runBuild(files: string[], options: BuildOptions): Promise<
 
     const mode = options.mode === "auto" ? modeFromPath(path) : options.mode;
     diagnostics.push(...guardMode(programFile, mode));
-    diagnostics.push(...runSemantic(programFile).diagnostics);
+    const macroExpandedFile = expandBuiltinMacros(programFile);
+    diagnostics.push(...runSemantic(macroExpandedFile).diagnostics);
     const fileDiags = diagnostics.slice(fileDiagStart);
     if (fileDiags.some((d) => d.severity === "error")) {
       continue;
@@ -95,7 +96,6 @@ export async function runBuild(files: string[], options: BuildOptions): Promise<
       continue;
     }
 
-    const macroExpandedFile = expandBuiltinMacros(programFile);
     const asm = emitNativeWin64FromAst(macroExpandedFile);
     const asmPath = buildOutputPath(path, "asm", options.outDir);
     await mkdir(dirname(asmPath), { recursive: true });

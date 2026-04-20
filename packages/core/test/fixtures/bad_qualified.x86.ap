@@ -1,0 +1,6 @@
+import "std/os/win" as os
+
+pub fn main() -> (r0: i32) {
+  os::not_a_real_api()
+  r0 = 0
+}

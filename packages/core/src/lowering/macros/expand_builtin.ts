@@ -1,6 +1,7 @@
 import type { CallArg, CallStmt, FileUnit, FnDecl, IdentExpr, Item, Stmt } from "@aperio/ast";
+import { splitImportQualifiedCallee } from "../../semantic/calls/qualified_calls.js";
 
-/** Built-in statement macros before codegen (v1: std/os/win friendly names). */
+/** Built-in statement macros before codegen (preserves `import … as` prefix on callee). */
 export function expandBuiltinMacros(file: FileUnit): FileUnit {
   const items: Item[] = file.items.map((item) => {
     if (item.kind !== "FnDecl") {
@@ -47,22 +48,26 @@ function rewriteCallStmt(stmt: CallStmt): Stmt {
     return stmt;
   }
   const calleeName = stmt.call.callee.name.text;
-  if (calleeName === "os::exit") {
+  const q = splitImportQualifiedCallee(calleeName);
+  if (!q) {
+    return stmt;
+  }
+  if (q.short === "exit") {
     return {
       ...stmt,
       call: {
         ...stmt.call,
-        callee: rewriteCalleeName(stmt.call.callee, "os::exit_process"),
+        callee: rewriteCalleeName(stmt.call.callee, `${q.prefix}::exit_process`),
         args: rewriteArgNames(stmt.call.args, { code: "uExitCode" }),
       },
     };
   }
-  if (calleeName === "os::write_stdout") {
+  if (q.short === "write_stdout") {
     return {
       ...stmt,
       call: {
         ...stmt.call,
-        callee: rewriteCalleeName(stmt.call.callee, "os::__macro_write_stdout"),
+        callee: rewriteCalleeName(stmt.call.callee, `${q.prefix}::__macro_write_stdout`),
       },
     };
   }

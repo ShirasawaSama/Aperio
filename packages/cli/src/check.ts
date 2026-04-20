@@ -9,7 +9,7 @@ import {
 } from "@aperio/diagnostics";
 import { lex } from "@aperio/lexer";
 import { type AperioMode, guardMode, modeFromPath } from "@aperio/mode";
-import { findStdlibRootNearEntry, mergeCompilationUnit } from "@aperio/core";
+import { expandBuiltinMacros, findStdlibRootNearEntry, mergeCompilationUnit } from "@aperio/core";
 import { parseFile } from "@aperio/parser";
 import { runSemantic } from "@aperio/semantic";
 import { SourceManager } from "@aperio/source";
@@ -70,7 +70,8 @@ export async function runCheck(files: string[], options: CheckOptions): Promise<
 
     const mode = options.mode === "auto" ? modeFromPath(path) : options.mode;
     diagnostics.push(...guardMode(programFile, mode));
-    diagnostics.push(...runSemantic(programFile).diagnostics);
+    const expanded = expandBuiltinMacros(programFile);
+    diagnostics.push(...runSemantic(expanded).diagnostics);
   }
 
   const rendered = renderDiagnostics(
