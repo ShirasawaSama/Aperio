@@ -85,11 +85,10 @@ pub fn repeat_print(
     dbg::assert!(n > 0u64, "n must be > 0")
 
     i = 0u64
-@loop:
+@loop(i: u64):
     if (i >= n) goto(@done)
     io::println!("hello from aperio: {}", msg)
-    i = i + 1u64
-    goto(@loop)
+    goto(@loop, i = i + 64)
 
 @done:
     ret = 0i32
@@ -97,7 +96,7 @@ pub fn repeat_print(
 
 pub fn main() -> (r0: i32) {
     // Named-argument call style in strict mode.
-    r0 = repeat_print(msg = c"world", n = 3u64)
+    r0 = repeat_print(r1@msg = c"world", r2@n = 3u64)
 }
 ```
 
