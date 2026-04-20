@@ -1,10 +1,25 @@
 import { access, mkdtemp, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { runBuild, runExplain } from "@aperio/cli";
+import { resolve } from "node:path";
+import { runAst, runBuild, runExplain } from "@aperio/cli";
 import { describe, expect, it, vi } from "vitest";
 
 describe("cli stubs", () => {
+  it("ast prints merged mid-end FileUnit for native hello fixture", async () => {
+    const spy = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    try {
+      const fixture = resolve("packages/core/test/fixtures/hello.x86.ap");
+      const code = await runAst(fixture);
+      expect(code).toBe(0);
+      const output = spy.mock.calls.map((c) => String(c[0])).join("");
+      expect(output).toContain("ExternFnDecl");
+      expect(output).toContain("exit_process");
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
   it("prints explain output", async () => {
     const spy = vi.spyOn(process.stdout, "write").mockReturnValue(true);
     const code = await runExplain("E3001");

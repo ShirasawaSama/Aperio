@@ -197,7 +197,7 @@ import "unknown-pkg" as u                           // 编译错：E5003 unknown
 
 - **CLI `build` / `check`**：若入口文件含 `import`，会从入口路径向上查找 `stdlib/std/os/win.ap` 以定位 `stdlib/` 根目录（否则尝试 `cwd/stdlib`），再按 BFS 加载 `std/…` 与 `./`、`../` 依赖；将依赖模块的顶层声明（除 `fn` 与 `import` 行本身）拼入同一 `FileUnit` 供后续语义与 codegen 使用。重复顶层符号报 **E5013**；找不到文件报 **E5012**；不支持的 import 方案报 **E5011**。
 - **解析器**：`parseFile` 支持链式 `nextNodeIdStart` / 返回 `nextNodeIdExclusive`，避免多文件合并后 AST 节点 id 冲突。
-- **内置宏与语义**：`expandBuiltinMacros`（如 `…::exit` → `…::exit_process`）在 **`runSemantic` 之前**执行，且展开时**保留** `import … as` 的前缀；语义阶段对 `alias::name` 做顶层解析，未知符号报 **E5020**（宏名、`__macro_*` 合成调用除外）。`aperio build` / `check` 通过 **`runMidendPipeline`**（`@aperio/core` 的 `pipeline`）统一执行 **`guardMode` → `expandBuiltinMacros` → `runSemantic`**，避免 CLI 分叉。
+- **内置宏与语义**：`expandBuiltinMacros`（如 `…::exit` → `…::exit_process`）在 **`runSemantic` 之前**执行，且展开时**保留** `import … as` 的前缀；语义阶段对 `alias::name` 做顶层解析，未知符号报 **E5020**（宏名、`__macro_*` 合成调用除外）。`aperio build` / `check` / **`ast`** 共用同一套 **import 合并**（若能定位 `stdlib/`）与 **`runMidendPipeline`**（`guardMode` → `expandBuiltinMacros` → `runSemantic`）；`ast` 打印的是**合并并过中端之后**的 `FileUnit` JSON。
 
 完整的包管理规则（清单格式、版本语义、MVS 解析、锁文件、缓存）在独立的《Aperio 包管理器》文档里：
 
