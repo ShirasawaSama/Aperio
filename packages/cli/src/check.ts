@@ -1,16 +1,13 @@
-import { existsSync, readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { resolve } from "node:path";
 import type { Diagnostic, SourceMap } from "@aperio/diagnostics";
 import {
   renderDiagnosticsHuman,
   renderDiagnosticsJson,
   renderDiagnosticsLsp,
 } from "@aperio/diagnostics";
-import { lex } from "@aperio/lexer";
+import { prepareProgramFromSource } from "@aperio/core";
 import { type AperioMode, modeFromPath } from "@aperio/mode";
-import { findStdlibRootNearEntry, mergeCompilationUnit, runMidendPipeline } from "@aperio/core";
-import { parseFile } from "@aperio/parser";
 import { SourceManager } from "@aperio/source";
 import type { OutputFormat } from "./format_opt.js";
 
@@ -28,48 +25,15 @@ export async function runCheck(files: string[], options: CheckOptions): Promise<
     const text = await readFile(path, "utf8");
     const resolvedPath = resolve(path);
     const entry = sourceManager.addFile(resolvedPath, text);
-    const lexResult = lex(entry.file.id, text);
-    diagnostics.push(...lexResult.diagnostics);
-    const parseResult = parseFile(resolvedPath, lexResult.tokens);
-    diagnostics.push(...parseResult.diagnostics);
-
-    const hasImport = parseResult.file.items.some((i) => i.kind === "ImportDecl");
-    let programFile = parseResult.file;
-    if (hasImport) {
-      let stdlibRoot = findStdlibRootNearEntry(resolvedPath);
-      if (!stdlibRoot) {
-        const fallback = resolve(process.cwd(), "stdlib");
-        if (existsSync(join(fallback, "std", "os", "win.ap"))) {
-          stdlibRoot = fallback;
-        }
-      }
-      if (stdlibRoot) {
-        const merged = mergeCompilationUnit({
-          entryPath: resolvedPath,
-          entryFile: parseResult.file,
-          entryNextNodeIdExclusive: parseResult.nextNodeIdExclusive,
-          stdlibRoot,
-          readSource: (abs) => {
-            try {
-              return readFileSync(abs, "utf8");
-            } catch {
-              return undefined;
-            }
-          },
-          loadTokens: (absPath, src) => {
-            const existing = sourceManager.getByPath(absPath);
-            const mod = existing ?? sourceManager.addFile(absPath, src);
-            return lex(mod.file.id, src);
-          },
-        });
-        diagnostics.push(...merged.diagnostics);
-        programFile = merged.file;
-      }
-    }
-
     const mode = options.mode === "auto" ? modeFromPath(path) : options.mode;
-    const { diagnostics: midendDiags } = runMidendPipeline(programFile, mode);
-    diagnostics.push(...midendDiags);
+    const prep = prepareProgramFromSource({
+      resolvedPath,
+      sourceText: text,
+      entryFileId: entry.file.id,
+      sourceManager,
+      mode,
+    });
+    diagnostics.push(...prep.diagnostics);
   }
 
   const rendered = renderDiagnostics(
