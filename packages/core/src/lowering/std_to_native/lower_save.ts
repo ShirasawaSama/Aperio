@@ -6,6 +6,7 @@ import type { LowerStmtList, LoweringEnv } from "./context.js";
 export function lowerSaveStmt(stmt: SaveStmt, env: LoweringEnv, lowerStmtList: LowerStmtList): Stmt[] {
   const prefix: Stmt[] = [];
   const suffix: Stmt[] = [];
+  const allocatedTemps: string[] = [];
 
   for (const slot of stmt.slots) {
     const tempName = allocateTempSlot(slot.name, env.reservedRegs);
@@ -22,12 +23,21 @@ export function lowerSaveStmt(stmt: SaveStmt, env: LoweringEnv, lowerStmtList: L
         notes: ["reduce simultaneously live slots or reserve fewer save slots"],
         fixes: [],
       });
+      releaseTemps(allocatedTemps, env.reservedRegs);
       return lowerStmtList(stmt.body, env);
     }
+    allocatedTemps.push(tempName);
     prefix.push(makeAssignStmt(tempName, toRegRefExpr(slot, env.state), stmt.span, env.state));
     suffix.push(makeAssignStmt(slot.name, makeRegRefExpr(tempName, slot, env.state), stmt.span, env.state));
   }
 
   const loweredBody = lowerStmtList(stmt.body, env);
+  releaseTemps(allocatedTemps, env.reservedRegs);
   return [...prefix, ...loweredBody, ...suffix];
+}
+
+function releaseTemps(names: string[], reservedRegs: Set<string>): void {
+  for (const name of names) {
+    reservedRegs.delete(name);
+  }
 }

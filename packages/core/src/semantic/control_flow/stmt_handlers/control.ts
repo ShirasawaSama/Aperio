@@ -12,7 +12,11 @@ export function handleSaveStmt(
   const snapshot = new Map(state);
   const inner = new Map(state);
   const innerFallsThrough = walk(stmt.body, depth + 1, inner);
-  restoreSnapshot(state, snapshot);
+  // save only restores when control naturally reaches block end.
+  // if control exits early (goto/return), no restore happens on that path.
+  if (innerFallsThrough) {
+    restoreSnapshot(state, snapshot);
+  }
   return innerFallsThrough;
 }
 

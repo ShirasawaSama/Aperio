@@ -56,4 +56,28 @@ describe("lowering/std_to_native", () => {
     expect(targetNames).toContain("r1");
     expect(targetNames).toContain("r2");
   });
+
+  it("reuses temporary slots across sequential save blocks", () => {
+    const lines = ["fn f(r1: i64) -> (r0: i64) {"];
+    for (let i = 0; i < 20; i += 1) {
+      lines.push("  save (r1) {");
+      lines.push("    r1 = r1 + 1");
+      lines.push("  }");
+    }
+    lines.push("  r0 = r1");
+    lines.push("}");
+    lines.push("");
+
+    const parsed = parseFile("save_seq.ap", lex(1, lines.join("\n")).tokens);
+    expect(parsed.diagnostics).toEqual([]);
+
+    const lowered = lowerStdToNativeAst({ source: parsed.file });
+    expect(lowered.diagnostics.some((d) => d.code === "E7003")).toBe(false);
+    const fn = lowered.output?.items.find((item) => item.kind === "FnDecl");
+    expect(fn?.kind).toBe("FnDecl");
+    if (!fn || fn.kind !== "FnDecl") {
+      return;
+    }
+    expect(fn.body.some((stmt) => stmt.kind === "SaveStmt")).toBe(false);
+  });
 });
