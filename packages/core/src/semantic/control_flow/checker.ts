@@ -1,28 +1,12 @@
 import type { CallArg, Expr, FileUnit, FnDecl, SlotBinding, Stmt } from "@aperio/ast";
 import type { Diagnostic, Span } from "@aperio/diagnostics";
+import {
+  recordIncomingTypes,
+  recordLabelIncomingState,
+  validateIncomingStateMerges,
+} from "./incoming.js";
+import type { FnSig, LabelInfo, LabelIncomingEdge, LabelIncomingType, ParamInfo, TypeState } from "./types.js";
 import { inferExprType } from "../types/infer.js";
-
-interface LabelInfo {
-  depth: number;
-  params: SlotBinding[];
-  span: Span;
-}
-
-interface ParamInfo {
-  slot: string;
-  alias: string;
-}
-
-interface FnSig {
-  params: ParamInfo[];
-}
-
-interface LabelIncomingType {
-  type: string;
-  span: Span;
-}
-
-type TypeState = Map<string, string>;
 
 export function checkControlFlow(file: FileUnit): Diagnostic[] {
   const diagnostics: Diagnostic[] = [];
@@ -42,9 +26,11 @@ function checkFunction(fn: FnDecl, signatures: Map<string, FnSig>): Diagnostic[]
   const diagnostics: Diagnostic[] = [];
   const labels = new Map<string, LabelInfo>();
   const incoming = new Map<string, Map<number, LabelIncomingType>>();
+  const incomingEdges = new Map<string, LabelIncomingEdge[]>();
   collectLabels(fn.body, 0, labels);
   const initial = buildInitialTypeState(fn);
-  checkStmtList(fn.body, 0, initial, labels, signatures, incoming, diagnostics);
+  checkStmtList(fn.body, 0, initial, labels, signatures, incoming, incomingEdges, diagnostics);
+  validateIncomingStateMerges(labels, incomingEdges, diagnostics);
   return diagnostics;
 }
 
@@ -104,9 +90,14 @@ function checkStmtList(
   labels: Map<string, LabelInfo>,
   signatures: Map<string, FnSig>,
   incoming: Map<string, Map<number, LabelIncomingType>>,
+  incomingEdges: Map<string, LabelIncomingEdge[]>,
   diagnostics: Diagnostic[],
-): void {
+): boolean {
+  let canFallthrough = true;
   for (const stmt of stmts) {
+    if (stmt.kind !== "LabelStmt" && !canFallthrough) {
+      continue;
+    }
     switch (stmt.kind) {
       case "AssignStmt": {
         const inferred = inferTypeName(stmt.value, state);
@@ -115,40 +106,104 @@ function checkStmtList(
         } else {
           state.delete(stmt.target.name);
         }
+        canFallthrough = true;
         break;
       }
       case "LabelStmt":
+        if (canFallthrough) {
+          recordLabelIncomingState(stmt.label.text, state, stmt.span, "fallthrough", incomingEdges);
+        }
         applyLabelTypeReset(stmt.params, state);
+        canFallthrough = true;
         break;
       case "GotoStmt":
-        checkJump(stmt.label.text, stmt.args, depth, state, labels, incoming, diagnostics);
+        checkJump(
+          stmt.label.text,
+          stmt.args,
+          depth,
+          state,
+          stmt.span,
+          "goto",
+          labels,
+          incoming,
+          incomingEdges,
+          diagnostics,
+        );
+        canFallthrough = false;
         break;
       case "IfGotoStmt":
-        checkJump(stmt.target.text, stmt.args, depth, state, labels, incoming, diagnostics);
+        checkJump(
+          stmt.target.text,
+          stmt.args,
+          depth,
+          state,
+          stmt.span,
+          "if-goto",
+          labels,
+          incoming,
+          incomingEdges,
+          diagnostics,
+        );
+        canFallthrough = true;
         break;
       case "SaveStmt": {
         const snapshot = new Map(state);
         const inner = new Map(state);
-        checkStmtList(stmt.body, depth + 1, inner, labels, signatures, incoming, diagnostics);
+        const innerFallsThrough = checkStmtList(
+          stmt.body,
+          depth + 1,
+          inner,
+          labels,
+          signatures,
+          incoming,
+          incomingEdges,
+          diagnostics,
+        );
         restoreSnapshot(state, snapshot);
+        canFallthrough = innerFallsThrough;
         break;
       }
       case "IfStmt": {
         const thenState = new Map(state);
         const elseState = new Map(state);
-        checkStmtList(stmt.thenBody, depth + 1, thenState, labels, signatures, incoming, diagnostics);
-        checkStmtList(stmt.elseBody, depth + 1, elseState, labels, signatures, incoming, diagnostics);
+        const thenFallsThrough = checkStmtList(
+          stmt.thenBody,
+          depth + 1,
+          thenState,
+          labels,
+          signatures,
+          incoming,
+          incomingEdges,
+          diagnostics,
+        );
+        const elseFallsThrough = checkStmtList(
+          stmt.elseBody,
+          depth + 1,
+          elseState,
+          labels,
+          signatures,
+          incoming,
+          incomingEdges,
+          diagnostics,
+        );
         reportBranchTypeConflicts(stmt.span, thenState, elseState, diagnostics);
         mergeBranchState(state, thenState, elseState);
+        canFallthrough = thenFallsThrough || elseFallsThrough;
         break;
       }
       case "CallStmt":
         checkCallRuleA(stmt.call.callee, stmt.call.args, signatures, diagnostics);
+        canFallthrough = true;
+        break;
+      case "ReturnStmt":
+        canFallthrough = false;
         break;
       default:
+        canFallthrough = true;
         break;
     }
   }
+  return canFallthrough;
 }
 
 function applyLabelTypeReset(params: SlotBinding[], state: TypeState): void {
@@ -166,8 +221,11 @@ function checkJump(
   args: Expr[],
   sourceDepth: number,
   state: TypeState,
+  edgeSpan: Span,
+  edgeKind: "goto" | "if-goto",
   labels: Map<string, LabelInfo>,
   incoming: Map<string, Map<number, LabelIncomingType>>,
+  incomingEdges: Map<string, LabelIncomingEdge[]>,
   diagnostics: Diagnostic[],
 ): void {
   const target = labels.get(labelName);
@@ -221,48 +279,9 @@ function checkJump(
   }
 
   recordIncomingTypes(labelName, args, state, incoming, diagnostics);
+  recordLabelIncomingState(labelName, state, edgeSpan, edgeKind, incomingEdges);
 }
 
-function recordIncomingTypes(
-  labelName: string,
-  args: Expr[],
-  state: TypeState,
-  incoming: Map<string, Map<number, LabelIncomingType>>,
-  diagnostics: Diagnostic[],
-): void {
-  const byIndex = incoming.get(labelName) ?? new Map<number, LabelIncomingType>();
-  for (let i = 0; i < args.length; i += 1) {
-    const arg = args[i];
-    if (!arg || arg.kind !== "RegRefExpr") {
-      continue;
-    }
-    const type = state.get(arg.name);
-    if (!type) {
-      continue;
-    }
-    const previous = byIndex.get(i);
-    if (!previous) {
-      byIndex.set(i, { type, span: arg.span });
-      continue;
-    }
-    if (previous.type === type) {
-      continue;
-    }
-    diagnostics.push({
-      code: "E4018",
-      severity: "error",
-      message: `inconsistent incoming type for label '${labelName}' parameter #${i + 1}`,
-      primary: {
-        span: arg.span,
-        message: `this edge passes ${type}, previous edge passed ${previous.type}`,
-      },
-      secondary: [{ span: previous.span, message: `previous incoming type: ${previous.type}` }],
-      notes: ["all incoming edges to the same label parameter should agree on logical type"],
-      fixes: [],
-    });
-  }
-  incoming.set(labelName, byIndex);
-}
 
 function checkCallRuleA(
   callee: Expr,
