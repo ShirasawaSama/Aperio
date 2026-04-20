@@ -1,5 +1,6 @@
 import { lex } from "@aperio/lexer";
 import { parseFile } from "@aperio/parser";
+import { runSemantic } from "@aperio/semantic";
 import { describe, expect, it } from "vitest";
 
 describe("parser", () => {
@@ -90,5 +91,67 @@ describe("parser", () => {
     const result = parseFile("uses_range.ap", tokens);
     expect(result.diagnostics).toEqual([]);
     expect(result.file).toMatchSnapshot();
+  });
+
+  it("parses save/if blocks and parameterized labels", () => {
+    const src = [
+      "fn flow(r1: i32, r3: i32) -> (r0: i32) {",
+      "@entry(r1: i32, r3: i32):",
+      "  save (r1, r3) {",
+      "    if (r1 > r3) {",
+      "      goto(@done(r1, r3))",
+      "    } else {",
+      "      r1 = r1 + r3",
+      "    }",
+      "  }",
+      "  if r1 goto(@done(r1, r3))",
+      "@done(r1: i32, r3: i32):",
+      "  r0 = r1",
+      "}",
+      "",
+    ].join("\n");
+    const tokens = lex(1, src).tokens;
+    const result = parseFile("flow.ap", tokens);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.file).toMatchSnapshot();
+  });
+
+  it("rejects positional expression call args", () => {
+    const src = [
+      "fn callee(r0: i32, r1: i32) -> (r0: i32) {",
+      "  return r0",
+      "}",
+      "fn caller(r0: i32, r1: i32) -> (r0: i32) {",
+      "  callee(r0 + r1)",
+      "  return r0",
+      "}",
+      "",
+    ].join("\n");
+    const tokens = lex(1, src).tokens;
+    const result = parseFile("bad_call.ap", tokens);
+    expect(result.diagnostics.some((d) => d.code === "E2031")).toBe(true);
+  });
+
+  it("checks call ruleA and goto inward jump in semantic phase", () => {
+    const src = [
+      "fn callee(r0: i32, r1: i32) -> (r0: i32) {",
+      "  return r0",
+      "}",
+      "fn test(r0: i32, r1: i32) -> (r0: i32) {",
+      "  save (r0) {",
+      "  @inner(r0: i32):",
+      "    callee(r1, r0)",
+      "  }",
+      "  goto(@inner(r0))",
+      "  return r0",
+      "}",
+      "",
+    ].join("\n");
+    const tokens = lex(1, src).tokens;
+    const parsed = parseFile("semantic_new.ap", tokens);
+    expect(parsed.diagnostics).toEqual([]);
+    const semantic = runSemantic(parsed.file);
+    expect(semantic.diagnostics.some((d) => d.code === "E4010")).toBe(true);
+    expect(semantic.diagnostics.some((d) => d.code === "E4016")).toBe(true);
   });
 });

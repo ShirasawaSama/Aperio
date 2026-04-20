@@ -30,6 +30,8 @@ export type Stmt =
   | ReturnStmt
   | GotoStmt
   | LabelStmt
+  | SaveStmt
+  | IfStmt
   | IfGotoStmt
   | FnBodyAliasDecl
   | IfExprStmt // loose-only
@@ -190,17 +192,33 @@ export interface ReturnStmt extends BaseNode {
 export interface GotoStmt extends BaseNode {
   kind: "GotoStmt";
   label: Ident;
+  args: RegRefExpr[];
 }
 
 export interface LabelStmt extends BaseNode {
   kind: "LabelStmt";
   label: Ident;
+  params: SlotBinding[];
+}
+
+export interface SaveStmt extends BaseNode {
+  kind: "SaveStmt";
+  slots: RegRefExpr[];
+  body: Stmt[];
+}
+
+export interface IfStmt extends BaseNode {
+  kind: "IfStmt";
+  condition: Expr;
+  thenBody: Stmt[];
+  elseBody: Stmt[];
 }
 
 export interface IfGotoStmt extends BaseNode {
   kind: "IfGotoStmt";
   condition: Expr;
   target: Ident;
+  args: RegRefExpr[];
 }
 
 export interface IfExprStmt extends BaseNode {

@@ -38,6 +38,7 @@ loose 层继续暂缓。
 - [~] 顶层声明覆盖：`fn/extern fn/const/val/var/struct/type/import/macro`
 - [~] 函数签名覆盖：参数、返回、`uses`、属性、别名绑定
 - [~] 语句覆盖：赋值、多返回赋值、标签、`goto`、条件跳转
+- [x] P0 扩展：调用规则 A（纯寄存器位置参数）、参数化 label/goto、`save`、结构化 `if`
 - [~] 表达式覆盖：调用、`as`、地址、内存访问、运算符优先级
 - [~] FFI/变参语法（`...`）解析
 - [ ] native-strict x86 专属语法（`lea[...]`、限制式写法）解析
@@ -45,9 +46,9 @@ loose 层继续暂缓。
 
 ## 1.3 AST 契约
 
-- [ ] AST 节点字段对齐文档章节
+- [~] AST 节点字段对齐文档章节
 - [ ] AST schema 版本化（避免工具链被破坏）
-- [ ] AST visitor 覆盖所有节点分支
+- [~] AST visitor 覆盖所有节点分支
 - [ ] AST 打印器稳定（snapshot 友好）
 
 ## 1.4 验收（目标一）
@@ -241,7 +242,7 @@ verifier --> llvmHook["LLVMHook"]
 
 ## 9. 立即下一步（本周）
 
-- [ ] 把 parser 推进到 `12_functions + 11_control_flow + 05_registers(alias)` 可解析
+- [x] 把 parser 推进到 `12_functions + 11_control_flow + 05_registers(alias)` 可解析
 - [ ] 完成 IR v1 最小模型与 verifier 空实现（先跑通接口）
 - [ ] 在 `codegen/x86` 新增 ABI profile（win64）与汇编 printer 框架
 - [ ] 更新 `regalloc.ts`：定义 `RegAllocStrategy` 与 linear-scan 输入输出类型

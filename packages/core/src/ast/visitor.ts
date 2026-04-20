@@ -9,6 +9,8 @@ import type {
   FileUnit,
   FnBodyAliasDecl,
   FnDecl,
+  GotoStmt,
+  IfStmt,
   IfGotoStmt,
   ImportDecl,
   LabelStmt,
@@ -18,6 +20,7 @@ import type {
   StructDecl,
   TuplePattern,
   UnaryExpr,
+  SaveStmt,
 } from "./nodes.js";
 
 export interface AstVisitor {
@@ -29,6 +32,9 @@ export interface AstVisitor {
   onImportDecl?(node: ImportDecl): void;
   onFileAliasDecl?(node: FileAliasDecl): void;
   onFnBodyAliasDecl?(node: FnBodyAliasDecl): void;
+  onGotoStmt?(node: GotoStmt): void;
+  onSaveStmt?(node: SaveStmt): void;
+  onIfStmt?(node: IfStmt): void;
   onIfGotoStmt?(node: IfGotoStmt): void;
   onLabelStmt?(node: LabelStmt): void;
   onCallExpr?(node: CallExpr): void;
@@ -71,6 +77,15 @@ function dispatch(node: Node | FileUnit, v: AstVisitor): void {
       return;
     case "FnBodyAliasDecl":
       v.onFnBodyAliasDecl?.(node);
+      return;
+    case "GotoStmt":
+      v.onGotoStmt?.(node);
+      return;
+    case "SaveStmt":
+      v.onSaveStmt?.(node);
+      return;
+    case "IfStmt":
+      v.onIfStmt?.(node);
       return;
     case "IfGotoStmt":
       v.onIfGotoStmt?.(node);

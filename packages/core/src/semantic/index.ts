@@ -1,6 +1,7 @@
 import type { FileUnit } from "@aperio/ast";
 import type { Diagnostic } from "@aperio/diagnostics";
 import { resolveAliases } from "./aliases/index.js";
+import { checkControlFlow } from "./control_flow/index.js";
 import { buildInitialRegTypes, checkUnknownRegWrites } from "./dreg/index.js";
 import { checkTypes } from "./types/index.js";
 
@@ -18,6 +19,7 @@ export function runSemantic(file: FileUnit): SemanticPassResult {
   diagnostics.push(...aliasResult.diagnostics);
 
   diagnostics.push(...checkTypes(file));
+  diagnostics.push(...checkControlFlow(file));
 
   // Force execution so the API is exercised in tests.
   buildInitialRegTypes(file);

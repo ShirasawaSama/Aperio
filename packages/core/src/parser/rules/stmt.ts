@@ -5,16 +5,20 @@ import type {
   FnBodyAliasDecl,
   GotoStmt,
   Ident,
+  IfStmt,
   IfGotoStmt,
   LabelStmt,
   MultiAssignStmt,
+  RegRefExpr,
   ReturnStmt,
+  SaveStmt,
+  SlotBinding,
   Stmt,
 } from "@aperio/ast";
 import { span } from "@aperio/diagnostics";
 import type { ParserState } from "../state.js";
 import { parseExpr } from "./expr.js";
-import { parseSlotBinding, parseTuplePattern } from "./shared.js";
+import { parseSlotBinding, parseSlotBindingList, parseTuplePattern } from "./shared.js";
 
 const REG_OR_ALIAS_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
@@ -39,7 +43,10 @@ export function parseStmt(state: ParserState): Stmt | undefined {
     return parseGotoStmt(state, tk.span.start);
   }
   if (state.matchKeyword("if")) {
-    return parseIfGotoStmt(state, tk.span.start);
+    return parseIfStmtOrIfGoto(state, tk.span.start);
+  }
+  if (state.matchKeyword("save")) {
+    return parseSaveStmt(state, tk.span.start);
   }
   if (
     (tk.kind === "Ident" && state.checkSymbol(":", 1) && !state.checkSymbol(":", 2)) ||
@@ -89,19 +96,20 @@ function parseReturnStmt(state: ParserState, start: number): ReturnStmt {
 }
 
 function parseGotoStmt(state: ParserState, start: number): GotoStmt | undefined {
-  const label = parseLabelRef(state, "expected label after 'goto'");
-  if (!label) {
+  const ref = parseLabelRef(state, "expected label after 'goto'");
+  if (!ref) {
     return undefined;
   }
   return {
     id: state.id(),
     kind: "GotoStmt",
-    span: span(state.fileId, start, label.span.end),
-    label,
+    span: span(state.fileId, start, ref.end),
+    label: ref.label,
+    args: ref.args,
   };
 }
 
-function parseIfGotoStmt(state: ParserState, start: number): IfGotoStmt | undefined {
+function parseIfStmtOrIfGoto(state: ParserState, start: number): IfStmt | IfGotoStmt | undefined {
   const wrapped = state.matchSymbol("(");
   const condition = parseExpr(state);
   if (!condition) {
@@ -110,20 +118,26 @@ function parseIfGotoStmt(state: ParserState, start: number): IfGotoStmt | undefi
   if (wrapped) {
     state.consumeSymbol(")", "expected ')' after if condition");
   }
+
+  if (state.checkSymbol("{")) {
+    return parseIfStmt(state, start, condition);
+  }
+
   if (!state.matchKeyword("goto")) {
     state.error(state.current(), "E2019", "expected 'goto' after if condition");
     return undefined;
   }
-  const target = parseLabelRef(state, "expected label after 'if ... goto'");
-  if (!target) {
+  const ref = parseLabelRef(state, "expected label after 'if ... goto'");
+  if (!ref) {
     return undefined;
   }
   return {
     id: state.id(),
     kind: "IfGotoStmt",
-    span: span(state.fileId, start, target.span.end),
+    span: span(state.fileId, start, ref.end),
     condition,
-    target,
+    target: ref.label,
+    args: ref.args,
   };
 }
 
@@ -133,12 +147,61 @@ function parseLabelStmt(state: ParserState): LabelStmt | undefined {
   if (!label) {
     return undefined;
   }
+  let params: SlotBinding[] = [];
+  if (state.checkSymbol("(")) {
+    params = parseSlotBindingList(state, "expected '(' after label name") ?? [];
+  }
   state.consumeSymbol(":", "expected ':' after label");
+  const end = state.previous().span.end;
   return {
     id: state.id(),
     kind: "LabelStmt",
-    span: label.span,
+    span: span(state.fileId, label.span.start, end),
     label,
+    params,
+  };
+}
+
+function parseSaveStmt(state: ParserState, start: number): SaveStmt | undefined {
+  const slots = parseRegRefList(state, "expected register list after 'save'");
+  if (!slots) {
+    return undefined;
+  }
+  const body = parseStmtBlock(state, "expected '{' after save register list");
+  if (!body) {
+    return undefined;
+  }
+  const end = state.previous().span.end;
+  return {
+    id: state.id(),
+    kind: "SaveStmt",
+    span: span(state.fileId, start, end),
+    slots,
+    body,
+  };
+}
+
+function parseIfStmt(state: ParserState, start: number, condition: Expr): IfStmt | undefined {
+  const thenBody = parseStmtBlock(state, "expected '{' to start if block");
+  if (!thenBody) {
+    return undefined;
+  }
+  let elseBody: Stmt[] = [];
+  if (state.matchKeyword("else")) {
+    const parsedElse = parseStmtBlock(state, "expected '{' to start else block");
+    if (!parsedElse) {
+      return undefined;
+    }
+    elseBody = parsedElse;
+  }
+  const end = state.previous().span.end;
+  return {
+    id: state.id(),
+    kind: "IfStmt",
+    span: span(state.fileId, start, end),
+    condition,
+    thenBody,
+    elseBody,
   };
 }
 
@@ -206,12 +269,75 @@ function parseAssignOrCallStmt(state: ParserState): Stmt | undefined {
   return undefined;
 }
 
-function parseLabelRef(state: ParserState, message: string): Ident | undefined {
+function parseLabelRef(
+  state: ParserState,
+  message: string,
+): { label: Ident; args: RegRefExpr[]; end: number } | undefined {
   const withParens = state.matchSymbol("(");
   state.matchSymbol("@");
   const label = state.parseIdent(message);
+  if (!label) {
+    return undefined;
+  }
+  let args: RegRefExpr[] = [];
+  if (state.checkSymbol("(")) {
+    args = parseRegRefList(state, "expected label argument list") ?? [];
+  }
   if (withParens) {
     state.consumeSymbol(")", "expected ')' after label reference");
   }
-  return label;
+  return { label, args, end: state.previous().span.end };
+}
+
+function parseStmtBlock(state: ParserState, message: string): Stmt[] | undefined {
+  if (!state.consumeSymbol("{", message)) {
+    return undefined;
+  }
+  const body: Stmt[] = [];
+  while (!state.at("Eof")) {
+    if (state.matchNewline()) {
+      continue;
+    }
+    if (state.matchSymbol("}")) {
+      return body;
+    }
+    const stmt = parseStmt(state);
+    if (!stmt) {
+      break;
+    }
+    body.push(stmt);
+  }
+  state.error(state.current(), "E2032", "expected '}' to close block");
+  return body;
+}
+
+function parseRegRefList(state: ParserState, message: string): RegRefExpr[] | undefined {
+  if (!state.consumeSymbol("(", message)) {
+    return undefined;
+  }
+  const args: RegRefExpr[] = [];
+  while (!state.at("Eof")) {
+    if (state.matchSymbol(")")) {
+      break;
+    }
+    const tk = state.consume((t) => t.kind === "Ident", "expected register name");
+    if (!tk || !/^r\d+$|^f\d+$/.test(tk.text)) {
+      state.error(tk, "E2011", "expected register slot like r0/f0");
+      return undefined;
+    }
+    args.push({
+      id: state.id(),
+      kind: "RegRefExpr",
+      span: tk.span,
+      name: tk.text,
+    });
+    if (state.matchSymbol(")")) {
+      break;
+    }
+    if (!state.matchSymbol(",")) {
+      state.error(state.current(), "E2012", "expected ',' or ')' in register list");
+      return undefined;
+    }
+  }
+  return args;
 }

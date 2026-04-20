@@ -26,6 +26,8 @@ export const Keywords = new Set([
   "return",
   "goto",
   "if",
+  "else",
+  "save",
   "alias",
   "const",
   "val",

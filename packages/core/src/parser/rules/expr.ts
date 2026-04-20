@@ -296,6 +296,14 @@ function parseCallArg(state: ParserState): CallArg | undefined {
   if (!value) {
     return undefined;
   }
+  if (value.kind !== "RegRefExpr" && value.kind !== "IdentExpr") {
+    state.error(
+      state.current() ?? state.previous(),
+      "E2031",
+      "non-register call argument must specify a target slot like r1 = <expr>",
+    );
+    return undefined;
+  }
   const end = value?.span.end ?? state.previous().span.end;
   return {
     id: state.id(),
