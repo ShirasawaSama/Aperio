@@ -8,6 +8,7 @@
 - 语义（Semantic）：`[ ]` 未开始（平台 API 合法性校验尚未实现）
 - 编译（Windows x86_64）：`[~]` 部分完成（最小 `std/os/win::ExitProcess/GetStdHandle/WriteFile` 调用已可发射到汇编）
 - 标准库源（声明 / parse 回归）：仓库内已有 `stdlib/std/os.ap`（门面占位）、`stdlib/std/os/win.ap`、`stdlib/std/os/linux.ap`（libc 形 `extern` 占位）；`packages/core/test/stdlib.parse.test.ts` 对 `stdlib/**/*.ap` 做零诊断解析验收
+- **import 合并**：`aperio build` / `check` 已把 `import "std/os/win" as os` 等解析为磁盘上的 `stdlib/**/*.ap` 并拼入编译单元（见 [21. 模块系统](./21_modules.md) 文末「工具链实现状态」）
 
 > 当前工具链状态：`--emit exe` 已接入。优先使用 `clang`，若不可用会自动回退到 VS 工具链（`ml64 + link + Windows Kits`）；建议在 **Developer PowerShell for VS** 中执行构建。
 

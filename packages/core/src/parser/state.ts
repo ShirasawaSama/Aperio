@@ -14,8 +14,10 @@ export class ParserState {
   public constructor(
     public readonly path: string,
     public readonly tokens: Token[],
+    nextNodeIdStart = 1,
   ) {
     this.fileId = tokens[0]?.span.fileId ?? 1;
+    this.nextNodeId = nextNodeIdStart;
   }
 
   public fileUnit(): FileUnit {

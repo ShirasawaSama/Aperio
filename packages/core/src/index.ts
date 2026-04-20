@@ -8,6 +8,8 @@ export * from "./diagnostics/index.js";
 export * as diagnostics from "./diagnostics/index.js";
 export * from "./ir/index.js";
 export * as ir from "./ir/index.js";
+export * from "./loader/index.js";
+export * as loader from "./loader/index.js";
 export * from "./lexer/index.js";
 export * as lexer from "./lexer/index.js";
 export * from "./lowering/index.js";

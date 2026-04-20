@@ -14,6 +14,8 @@ import type {
 interface Win64EmitCtx {
   /** Declared `extern fn` name (e.g. `write_file`) -> linker symbol (e.g. `WriteFile`). */
   externLinkByDeclName: Map<string, string>;
+  /** `import "…" as foo` → `foo` (used to recognize `foo::bar` calls). */
+  importAliases: Set<string>;
 }
 
 // Minimal native-strict x86_64 (Windows ABI flavored) asm emitter.
@@ -71,7 +73,17 @@ function buildWin64EmitCtx(file: FileUnit): Win64EmitCtx {
     }
     externLinkByDeclName.set(item.name.text, externLinkSymbol(item));
   }
-  return { externLinkByDeclName };
+  return { externLinkByDeclName, importAliases: collectImportAliases(file) };
+}
+
+function collectImportAliases(file: FileUnit): Set<string> {
+  const aliases = new Set<string>();
+  for (const item of file.items) {
+    if (item.kind === "ImportDecl") {
+      aliases.add(item.alias.text);
+    }
+  }
+  return aliases;
 }
 
 function externLinkSymbol(decl: ExternFnDecl): string {
@@ -101,13 +113,21 @@ function collectExternSymbolNames(file: FileUnit): string[] {
   return [...set].sort((a, b) => a.localeCompare(b));
 }
 
-function calleeShortName(callee: Expr): string | undefined {
+/** Qualified calls must use a known import alias; unqualified names pass through. */
+function calleeShortNameForExtern(callee: Expr, importAliases: Set<string>): string | undefined {
   if (callee.kind !== "IdentExpr") {
     return undefined;
   }
   const full = callee.name.text;
   const idx = full.lastIndexOf("::");
-  return idx >= 0 ? full.slice(idx + 2) : full;
+  if (idx < 0) {
+    return full;
+  }
+  const alias = full.slice(0, idx);
+  if (!importAliases.has(alias)) {
+    return undefined;
+  }
+  return full.slice(idx + 2);
 }
 
 function emitFunction(fn: FnDecl, ctx: Win64EmitCtx): string[] {
@@ -315,7 +335,11 @@ function emitCall(stmt: CallStmt, out: string[], ctx: Win64EmitCtx): void {
   if (tryEmitExternMappedCall(stmt, out, ctx)) {
     return;
   }
-  if (isOsCallName(stmt, "ExitProcess") || isOsCallName(stmt, "exit") || isOsCallName(stmt, "exit_process")) {
+  if (
+    isImportQualifiedCall(stmt, "ExitProcess", ctx) ||
+    isImportQualifiedCall(stmt, "exit", ctx) ||
+    isImportQualifiedCall(stmt, "exit_process", ctx)
+  ) {
     const codeArg =
       findCallArg(stmt.call.args, ["uExitCode", "code"], 0);
     if (!codeArg) {
@@ -331,11 +355,14 @@ function emitCall(stmt: CallStmt, out: string[], ctx: Win64EmitCtx): void {
     out.push("  call ExitProcess");
     return;
   }
-  if (isOsCallName(stmt, "__macro_write_stdout")) {
+  if (isImportQualifiedCall(stmt, "__macro_write_stdout", ctx)) {
     emitWriteStdout(stmt.call.args, out);
     return;
   }
-  if (isOsCallName(stmt, "GetStdHandle") || isOsCallName(stmt, "get_std_handle")) {
+  if (
+    isImportQualifiedCall(stmt, "GetStdHandle", ctx) ||
+    isImportQualifiedCall(stmt, "get_std_handle", ctx)
+  ) {
     const handleArg = findCallArg(stmt.call.args, ["nStdHandle"], 0);
     if (!handleArg) {
       out.push("  # unsupported os::GetStdHandle call: missing nStdHandle");
@@ -350,7 +377,7 @@ function emitCall(stmt: CallStmt, out: string[], ctx: Win64EmitCtx): void {
     out.push("  call GetStdHandle");
     return;
   }
-  if (isOsCallName(stmt, "WriteFile") || isOsCallName(stmt, "write_file")) {
+  if (isImportQualifiedCall(stmt, "WriteFile", ctx) || isImportQualifiedCall(stmt, "write_file", ctx)) {
     emitWriteFile(stmt.call.args, out);
     return;
   }
@@ -361,7 +388,11 @@ function emitCallMasm(stmt: CallStmt, out: string[], ctx: Win64EmitCtx): void {
   if (tryEmitExternMappedCallMasm(stmt, out, ctx)) {
     return;
   }
-  if (isOsCallName(stmt, "ExitProcess") || isOsCallName(stmt, "exit") || isOsCallName(stmt, "exit_process")) {
+  if (
+    isImportQualifiedCall(stmt, "ExitProcess", ctx) ||
+    isImportQualifiedCall(stmt, "exit", ctx) ||
+    isImportQualifiedCall(stmt, "exit_process", ctx)
+  ) {
     const codeArg =
       findCallArg(stmt.call.args, ["uExitCode", "code"], 0);
     if (!codeArg) {
@@ -377,11 +408,14 @@ function emitCallMasm(stmt: CallStmt, out: string[], ctx: Win64EmitCtx): void {
     out.push("  call ExitProcess");
     return;
   }
-  if (isOsCallName(stmt, "__macro_write_stdout")) {
+  if (isImportQualifiedCall(stmt, "__macro_write_stdout", ctx)) {
     emitWriteStdoutMasm(stmt.call.args, out);
     return;
   }
-  if (isOsCallName(stmt, "GetStdHandle") || isOsCallName(stmt, "get_std_handle")) {
+  if (
+    isImportQualifiedCall(stmt, "GetStdHandle", ctx) ||
+    isImportQualifiedCall(stmt, "get_std_handle", ctx)
+  ) {
     const handleArg = findCallArg(stmt.call.args, ["nStdHandle"], 0);
     if (!handleArg) {
       out.push("  ; unsupported os::GetStdHandle call: missing nStdHandle");
@@ -396,7 +430,7 @@ function emitCallMasm(stmt: CallStmt, out: string[], ctx: Win64EmitCtx): void {
     out.push("  call GetStdHandle");
     return;
   }
-  if (isOsCallName(stmt, "WriteFile") || isOsCallName(stmt, "write_file")) {
+  if (isImportQualifiedCall(stmt, "WriteFile", ctx) || isImportQualifiedCall(stmt, "write_file", ctx)) {
     emitWriteFileMasm(stmt.call.args, out);
     return;
   }
@@ -522,7 +556,7 @@ function emitWriteFileMasm(args: CallArg[], out: string[]): void {
 }
 
 function tryEmitExternMappedCall(stmt: CallStmt, out: string[], ctx: Win64EmitCtx): boolean {
-  const short = calleeShortName(stmt.call.callee);
+  const short = calleeShortNameForExtern(stmt.call.callee, ctx.importAliases);
   if (!short) {
     return false;
   }
@@ -572,7 +606,7 @@ function tryEmitExternMappedCall(stmt: CallStmt, out: string[], ctx: Win64EmitCt
 }
 
 function tryEmitExternMappedCallMasm(stmt: CallStmt, out: string[], ctx: Win64EmitCtx): boolean {
-  const short = calleeShortName(stmt.call.callee);
+  const short = calleeShortNameForExtern(stmt.call.callee, ctx.importAliases);
   if (!short) {
     return false;
   }
@@ -631,8 +665,18 @@ function findCallArg(args: CallArg[], names: string[], fallbackIndex: number): C
   return args[fallbackIndex];
 }
 
-function isOsCallName(stmt: CallStmt, shortName: string): boolean {
-  return stmt.call.callee.kind === "IdentExpr" && stmt.call.callee.name.text === `os::${shortName}`;
+function isImportQualifiedCall(stmt: CallStmt, shortName: string, ctx: Win64EmitCtx): boolean {
+  if (stmt.call.callee.kind !== "IdentExpr") {
+    return false;
+  }
+  const full = stmt.call.callee.name.text;
+  const idx = full.lastIndexOf("::");
+  if (idx < 0) {
+    return false;
+  }
+  const alias = full.slice(0, idx);
+  const short = full.slice(idx + 2);
+  return short === shortName && ctx.importAliases.has(alias);
 }
 
 function exprToOperand(expr: Expr): string | undefined {

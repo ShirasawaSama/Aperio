@@ -1,6 +1,6 @@
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { existsSync, readdirSync } from "node:fs";
-import { dirname, extname, join } from "node:path";
+import { dirname, extname, join, resolve } from "node:path";
 import { spawn } from "node:child_process";
 import type { Diagnostic, SourceMap } from "@aperio/diagnostics";
 import {
@@ -10,6 +10,7 @@ import {
 } from "@aperio/diagnostics";
 import { emitNativeWin64FromAst, emitNativeWin64MasmFromAst } from "@aperio/codegen/x86";
 import { expandBuiltinMacros } from "@aperio/core";
+import { findStdlibRootNearEntry, mergeCompilationUnit } from "@aperio/core";
 import { lex } from "@aperio/lexer";
 import { type AperioMode, guardMode, modeFromPath } from "@aperio/mode";
 import { parseFile } from "@aperio/parser";
@@ -33,14 +34,57 @@ export async function runBuild(files: string[], options: BuildOptions): Promise<
   for (const path of targets) {
     const fileDiagStart = diagnostics.length;
     const text = await readFile(path, "utf8");
-    const entry = sourceManager.addFile(path, text);
+    const resolvedPath = resolve(path);
+    const entry = sourceManager.addFile(resolvedPath, text);
     const lexResult = lex(entry.file.id, text);
     diagnostics.push(...lexResult.diagnostics);
-    const parseResult = parseFile(path, lexResult.tokens);
+    const parseResult = parseFile(resolvedPath, lexResult.tokens);
     diagnostics.push(...parseResult.diagnostics);
+
+    const hasImport = parseResult.file.items.some((i) => i.kind === "ImportDecl");
+    let programFile = parseResult.file;
+    if (hasImport) {
+      let stdlibRoot = findStdlibRootNearEntry(resolvedPath);
+      if (!stdlibRoot) {
+        const fallback = resolve(process.cwd(), "stdlib");
+        if (existsSync(join(fallback, "std", "os", "win.ap"))) {
+          stdlibRoot = fallback;
+        }
+      }
+      if (!stdlibRoot) {
+        diagnostics.push(
+          makeBuildDiag(
+            entry.file.id,
+            "cannot resolve std/ imports: no stdlib directory found (expected …/stdlib/std/os/win.ap near the entry file or under cwd)",
+          ),
+        );
+      } else {
+        const merged = mergeCompilationUnit({
+          entryPath: resolvedPath,
+          entryFile: parseResult.file,
+          entryNextNodeIdExclusive: parseResult.nextNodeIdExclusive,
+          stdlibRoot,
+          readSource: (abs) => {
+            try {
+              return readFileSync(abs, "utf8");
+            } catch {
+              return undefined;
+            }
+          },
+          loadTokens: (absPath, src) => {
+            const existing = sourceManager.getByPath(absPath);
+            const mod = existing ?? sourceManager.addFile(absPath, src);
+            return lex(mod.file.id, src);
+          },
+        });
+        diagnostics.push(...merged.diagnostics);
+        programFile = merged.file;
+      }
+    }
+
     const mode = options.mode === "auto" ? modeFromPath(path) : options.mode;
-    diagnostics.push(...guardMode(parseResult.file, mode));
-    diagnostics.push(...runSemantic(parseResult.file).diagnostics);
+    diagnostics.push(...guardMode(programFile, mode));
+    diagnostics.push(...runSemantic(programFile).diagnostics);
     const fileDiags = diagnostics.slice(fileDiagStart);
     if (fileDiags.some((d) => d.severity === "error")) {
       continue;
@@ -51,7 +95,7 @@ export async function runBuild(files: string[], options: BuildOptions): Promise<
       continue;
     }
 
-    const macroExpandedFile = expandBuiltinMacros(parseResult.file);
+    const macroExpandedFile = expandBuiltinMacros(programFile);
     const asm = emitNativeWin64FromAst(macroExpandedFile);
     const asmPath = buildOutputPath(path, "asm", options.outDir);
     await mkdir(dirname(asmPath), { recursive: true });

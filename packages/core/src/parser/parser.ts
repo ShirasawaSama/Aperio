@@ -15,7 +15,7 @@ import {
 } from "./rules/index.js";
 import { recoverIndex } from "./recovery.js";
 import { ParserState } from "./state.js";
-import type { ParseResult } from "./types.js";
+import type { ParseFileOptions, ParseResult } from "./types.js";
 
 function rejectOrphanAttributes(state: ParserState, attrs: Attribute[]): void {
   if (attrs.length === 0) {
@@ -41,8 +41,8 @@ function rejectOrphanAttributes(state: ParserState, attrs: Attribute[]): void {
 
 // Recursive-descent parser skeleton.
 // v1 target: parse import lines and minimal fn declarations.
-export function parseFile(path: string, tokens: Token[]): ParseResult {
-  const state = new ParserState(path, tokens);
+export function parseFile(path: string, tokens: Token[], options?: ParseFileOptions): ParseResult {
+  const state = new ParserState(path, tokens, options?.nextNodeIdStart);
   while (state.index < state.tokens.length && !state.at("Eof")) {
     if (state.matchNewline()) {
       continue;
@@ -139,5 +139,9 @@ export function parseFile(path: string, tokens: Token[]): ParseResult {
     state.error(tk, "E2005", "unsupported top-level declaration");
     state.index = Math.min(recoverIndex(state.tokens, state.index + 1), state.tokens.length - 1);
   }
-  return { file: state.fileUnit(), diagnostics: state.diagnostics };
+  return {
+    file: state.fileUnit(),
+    diagnostics: state.diagnostics,
+    nextNodeIdExclusive: state.nextNodeId,
+  };
 }
