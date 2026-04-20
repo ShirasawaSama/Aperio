@@ -8,12 +8,13 @@ import type {
   FnDecl,
   LiteralExpr,
   ReturnStmt,
+  SlotBinding,
   Stmt,
+  TypeExpr,
 } from "@aperio/ast";
 
 interface Win64EmitCtx {
-  /** Declared `extern fn` name (e.g. `write_file`) -> linker symbol (e.g. `WriteFile`). */
-  externLinkByDeclName: Map<string, string>;
+  externDeclByName: Map<string, ExternFnDecl>;
   /** `import "…" as foo` → `foo` (used to recognize `foo::bar` calls). */
   importAliases: Set<string>;
 }
@@ -66,14 +67,14 @@ export function emitNativeWin64MasmFromAst(file: FileUnit): string {
 }
 
 function buildWin64EmitCtx(file: FileUnit): Win64EmitCtx {
-  const externLinkByDeclName = new Map<string, string>();
+  const externDeclByName = new Map<string, ExternFnDecl>();
   for (const item of file.items) {
     if (item.kind !== "ExternFnDecl") {
       continue;
     }
-    externLinkByDeclName.set(item.name.text, externLinkSymbol(item));
+    externDeclByName.set(item.name.text, item);
   }
-  return { externLinkByDeclName, importAliases: collectImportAliases(file) };
+  return { externDeclByName, importAliases: collectImportAliases(file) };
 }
 
 function collectImportAliases(file: FileUnit): Set<string> {
@@ -104,7 +105,7 @@ function readNameAttribute(decl: ExternFnDecl): string | undefined {
 }
 
 function collectExternSymbolNames(file: FileUnit): string[] {
-  const set = new Set<string>(["ExitProcess", "GetStdHandle", "WriteFile"]);
+  const set = new Set<string>();
   for (const item of file.items) {
     if (item.kind === "ExternFnDecl") {
       set.add(externLinkSymbol(item));
@@ -332,106 +333,22 @@ function emitReturnMasm(stmt: ReturnStmt, out: string[], endLabel: string): void
 }
 
 function emitCall(stmt: CallStmt, out: string[], ctx: Win64EmitCtx): void {
-  if (tryEmitExternMappedCall(stmt, out, ctx)) {
-    return;
-  }
-  if (
-    isImportQualifiedCall(stmt, "ExitProcess", ctx) ||
-    isImportQualifiedCall(stmt, "exit", ctx) ||
-    isImportQualifiedCall(stmt, "exit_process", ctx)
-  ) {
-    const codeArg =
-      findCallArg(stmt.call.args, ["uExitCode", "code"], 0);
-    if (!codeArg) {
-      out.push("  # unsupported os::exit call: missing code argument");
-      return;
-    }
-    const code = exprToOperand(codeArg.value);
-    if (!code) {
-      out.push("  # unsupported os::exit call: non-literal/non-register argument");
-      return;
-    }
-    out.push(`  mov ecx, ${code}`);
-    out.push("  call ExitProcess");
+  if (tryEmitExternCall(stmt, out, ctx)) {
     return;
   }
   if (isImportQualifiedCall(stmt, "__macro_write_stdout", ctx)) {
     emitWriteStdout(stmt.call.args, out);
     return;
   }
-  if (
-    isImportQualifiedCall(stmt, "GetStdHandle", ctx) ||
-    isImportQualifiedCall(stmt, "get_std_handle", ctx)
-  ) {
-    const handleArg = findCallArg(stmt.call.args, ["nStdHandle"], 0);
-    if (!handleArg) {
-      out.push("  # unsupported os::GetStdHandle call: missing nStdHandle");
-      return;
-    }
-    const handle = exprToOperand(handleArg.value);
-    if (!handle) {
-      out.push("  # unsupported os::GetStdHandle call: nStdHandle must be register/literal");
-      return;
-    }
-    out.push(`  mov ecx, ${handle}`);
-    out.push("  call GetStdHandle");
-    return;
-  }
-  if (isImportQualifiedCall(stmt, "WriteFile", ctx) || isImportQualifiedCall(stmt, "write_file", ctx)) {
-    emitWriteFile(stmt.call.args, out);
-    return;
-  }
   out.push(`  # unsupported call: ${renderCallName(stmt.call.callee)}`);
 }
 
 function emitCallMasm(stmt: CallStmt, out: string[], ctx: Win64EmitCtx): void {
-  if (tryEmitExternMappedCallMasm(stmt, out, ctx)) {
-    return;
-  }
-  if (
-    isImportQualifiedCall(stmt, "ExitProcess", ctx) ||
-    isImportQualifiedCall(stmt, "exit", ctx) ||
-    isImportQualifiedCall(stmt, "exit_process", ctx)
-  ) {
-    const codeArg =
-      findCallArg(stmt.call.args, ["uExitCode", "code"], 0);
-    if (!codeArg) {
-      out.push("  ; unsupported os::exit call: missing code argument");
-      return;
-    }
-    const code = exprToOperandMasm(codeArg.value);
-    if (!code) {
-      out.push("  ; unsupported os::exit call: non-literal/non-register argument");
-      return;
-    }
-    out.push(`  mov ecx, ${code}`);
-    out.push("  call ExitProcess");
+  if (tryEmitExternCallMasm(stmt, out, ctx)) {
     return;
   }
   if (isImportQualifiedCall(stmt, "__macro_write_stdout", ctx)) {
     emitWriteStdoutMasm(stmt.call.args, out);
-    return;
-  }
-  if (
-    isImportQualifiedCall(stmt, "GetStdHandle", ctx) ||
-    isImportQualifiedCall(stmt, "get_std_handle", ctx)
-  ) {
-    const handleArg = findCallArg(stmt.call.args, ["nStdHandle"], 0);
-    if (!handleArg) {
-      out.push("  ; unsupported os::GetStdHandle call: missing nStdHandle");
-      return;
-    }
-    const handle = exprToOperandMasm(handleArg.value);
-    if (!handle) {
-      out.push("  ; unsupported os::GetStdHandle call: nStdHandle must be register/literal");
-      return;
-    }
-    out.push(`  mov ecx, ${handle}`);
-    out.push("  call GetStdHandle");
-    return;
-  }
-  if (isImportQualifiedCall(stmt, "WriteFile", ctx) || isImportQualifiedCall(stmt, "write_file", ctx)) {
-    emitWriteFileMasm(stmt.call.args, out);
     return;
   }
   out.push(`  ; unsupported call: ${renderCallName(stmt.call.callee)}`);
@@ -481,188 +398,260 @@ function emitWriteStdoutMasm(args: CallArg[], out: string[]): void {
   out.push("  call WriteFile");
 }
 
-function emitWriteFile(args: CallArg[], out: string[]): void {
-  const hFileArg = findCallArg(args, ["hFile"], 0);
-  const bufferArg = findCallArg(args, ["lpBuffer"], 1);
-  const bytesArg = findCallArg(args, ["nNumberOfBytesToWrite"], 2);
-  const writtenArg = findCallArg(args, ["lpNumberOfBytesWritten"], 3);
-  const overlappedArg = findCallArg(args, ["lpOverlapped"], 4);
-  if (!hFileArg || !bufferArg || !bytesArg) {
-    out.push("  # unsupported os::WriteFile call: expected hFile/lpBuffer/nNumberOfBytesToWrite");
-    return;
+type ArgKind = "ptr" | "int32" | "int64";
+
+function externArgKind(t: TypeExpr | undefined): ArgKind {
+  if (!t) {
+    return "int64";
   }
-  const hFile = exprToOperand(hFileArg.value);
-  const bytes = exprToOperand(bytesArg.value);
-  if (!hFile || !bytes) {
-    out.push("  # unsupported os::WriteFile call: handle/bytes must be register/literal");
-    return;
+  if (t.typeKind === "ptr") {
+    return "ptr";
   }
-  out.push(`  mov rcx, ${hFile}`);
-  emitPointerLoadTo("rdx", bufferArg.value, out);
-  out.push(`  mov r8d, ${bytes}`);
-  if (writtenArg) {
-    emitPointerLoadTo("r9", writtenArg.value, out);
-  } else {
-    out.push("  xor r9d, r9d");
-  }
-  if (overlappedArg) {
-    const overlapped = exprToOperand(overlappedArg.value);
-    if (!overlapped) {
-      out.push("  # unsupported os::WriteFile call: lpOverlapped must be register/literal");
-      return;
+  if (t.typeKind === "named") {
+    if (t.name === "u32" || t.name === "i32") {
+      return "int32";
     }
-    out.push(`  mov qword ptr [rsp+32], ${overlapped}`);
-  } else {
-    out.push("  mov qword ptr [rsp+32], 0");
   }
-  out.push("  call WriteFile");
+  return "int64";
 }
 
-function emitWriteFileMasm(args: CallArg[], out: string[]): void {
-  const hFileArg = findCallArg(args, ["hFile"], 0);
-  const bufferArg = findCallArg(args, ["lpBuffer"], 1);
-  const bytesArg = findCallArg(args, ["nNumberOfBytesToWrite"], 2);
-  const writtenArg = findCallArg(args, ["lpNumberOfBytesWritten"], 3);
-  const overlappedArg = findCallArg(args, ["lpOverlapped"], 4);
-  if (!hFileArg || !bufferArg || !bytesArg) {
-    out.push("  ; unsupported os::WriteFile call: expected hFile/lpBuffer/nNumberOfBytesToWrite");
-    return;
+function dwordRegFor(reg64: string): string {
+  switch (reg64) {
+    case "rcx":
+      return "ecx";
+    case "rdx":
+      return "edx";
+    case "r8":
+      return "r8d";
+    case "r9":
+      return "r9d";
+    default:
+      return reg64;
   }
-  const hFile = exprToOperandMasm(hFileArg.value);
-  const bytes = exprToOperandMasm(bytesArg.value);
-  if (!hFile || !bytes) {
-    out.push("  ; unsupported os::WriteFile call: handle/bytes must be register/literal");
-    return;
-  }
-  out.push(`  mov rcx, ${hFile}`);
-  emitPointerLoadToMasm("rdx", bufferArg.value, out);
-  out.push(`  mov r8d, ${bytes}`);
-  if (writtenArg) {
-    emitPointerLoadToMasm("r9", writtenArg.value, out);
-  } else {
-    out.push("  xor r9d, r9d");
-  }
-  if (overlappedArg) {
-    const overlapped = exprToOperandMasm(overlappedArg.value);
-    if (!overlapped) {
-      out.push("  ; unsupported os::WriteFile call: lpOverlapped must be register/literal");
-      return;
-    }
-    out.push(`  mov qword ptr [rsp+32], ${overlapped}`);
-  } else {
-    out.push("  mov qword ptr [rsp+32], 0");
-  }
-  out.push("  call WriteFile");
 }
 
-function tryEmitExternMappedCall(stmt: CallStmt, out: string[], ctx: Win64EmitCtx): boolean {
+function resolveExternCallArg(args: CallArg[], param: SlotBinding, index: number): Expr | undefined {
+  const named = args.find((a) => a.name?.text === param.alias.text);
+  if (named) {
+    return named.value;
+  }
+  return args[index]?.value;
+}
+
+function emitExternArgIntoRegGas(param: SlotBinding, expr: Expr, reg64: string, out: string[]): boolean {
+  const kind = externArgKind(param.type);
+  if (kind === "ptr") {
+    emitPointerLoadTo(reg64, expr, out);
+    return true;
+  }
+  if (kind === "int32") {
+    const op = exprToOperand(expr);
+    if (!op) {
+      return false;
+    }
+    out.push(`  mov ${dwordRegFor(reg64)}, ${op}`);
+    return true;
+  }
+  if (expr.kind === "IdentExpr" && !regToAsm(expr.name.text)) {
+    emitPointerLoadTo(reg64, expr, out);
+    return true;
+  }
+  const op = exprToOperand(expr);
+  if (!op) {
+    return false;
+  }
+  out.push(`  mov ${reg64}, ${op}`);
+  return true;
+}
+
+function emitExternArgIntoRegMasm(param: SlotBinding, expr: Expr, reg64: string, out: string[]): boolean {
+  const kind = externArgKind(param.type);
+  if (kind === "ptr") {
+    emitPointerLoadToMasm(reg64, expr, out);
+    return true;
+  }
+  if (kind === "int32") {
+    const op = exprToOperandMasm(expr);
+    if (!op) {
+      return false;
+    }
+    out.push(`  mov ${dwordRegFor(reg64)}, ${op}`);
+    return true;
+  }
+  if (expr.kind === "IdentExpr" && !regToAsm(expr.name.text)) {
+    emitPointerLoadToMasm(reg64, expr, out);
+    return true;
+  }
+  const op = exprToOperandMasm(expr);
+  if (!op) {
+    return false;
+  }
+  out.push(`  mov ${reg64}, ${op}`);
+  return true;
+}
+
+function emitExternArgIntoStackGas(param: SlotBinding, expr: Expr, rspOffset: number, out: string[]): boolean {
+  const kind = externArgKind(param.type);
+  const slot = `qword ptr [rsp+${rspOffset}]`;
+  const slot32 = `dword ptr [rsp+${rspOffset}]`;
+  if (kind === "ptr") {
+    emitPointerLoadTo("rax", expr, out);
+    out.push(`  mov ${slot}, rax`);
+    return true;
+  }
+  if (kind === "int32") {
+    const op = exprToOperand(expr);
+    if (!op) {
+      return false;
+    }
+    out.push(`  mov ${slot32}, ${op}`);
+    return true;
+  }
+  if (expr.kind === "IdentExpr" && !regToAsm(expr.name.text)) {
+    emitPointerLoadTo("rax", expr, out);
+    out.push(`  mov ${slot}, rax`);
+    return true;
+  }
+  const op = exprToOperand(expr);
+  if (!op) {
+    return false;
+  }
+  out.push(`  mov ${slot}, ${op}`);
+  return true;
+}
+
+function emitExternArgIntoStackMasm(param: SlotBinding, expr: Expr, rspOffset: number, out: string[]): boolean {
+  const kind = externArgKind(param.type);
+  if (kind === "ptr") {
+    emitPointerLoadToMasm("rax", expr, out);
+    out.push(`  mov QWORD PTR [rsp+${rspOffset}], rax`);
+    return true;
+  }
+  if (kind === "int32") {
+    const op = exprToOperandMasm(expr);
+    if (!op) {
+      return false;
+    }
+    out.push(`  mov DWORD PTR [rsp+${rspOffset}], ${op}`);
+    return true;
+  }
+  if (expr.kind === "IdentExpr" && !regToAsm(expr.name.text)) {
+    emitPointerLoadToMasm("rax", expr, out);
+    out.push(`  mov QWORD PTR [rsp+${rspOffset}], rax`);
+    return true;
+  }
+  const op = exprToOperandMasm(expr);
+  if (!op) {
+    return false;
+  }
+  out.push(`  mov QWORD PTR [rsp+${rspOffset}], ${op}`);
+  return true;
+}
+
+function emitExternDeclCallGas(decl: ExternFnDecl, link: string, args: CallArg[], out: string[]): void {
+  const regs64 = ["rcx", "rdx", "r8", "r9"] as const;
+  for (let i = 0; i < decl.params.length; i += 1) {
+    const param = decl.params[i];
+    if (!param) {
+      out.push(`  # unsupported extern '${decl.name.text}': missing parameter metadata`);
+      return;
+    }
+    const expr = resolveExternCallArg(args, param, i);
+    if (!expr) {
+      out.push(`  # unsupported extern '${decl.name.text}': missing argument for '${param.alias.text}'`);
+      return;
+    }
+    if (i < 4) {
+      const reg = regs64[i];
+      if (!reg) {
+        return;
+      }
+      if (!emitExternArgIntoRegGas(param, expr, reg, out)) {
+        out.push(`  # unsupported extern '${decl.name.text}': arg '${param.alias.text}'`);
+        return;
+      }
+    } else if (i === 4) {
+      if (!emitExternArgIntoStackGas(param, expr, 32, out)) {
+        out.push(`  # unsupported extern '${decl.name.text}': stack arg '${param.alias.text}'`);
+        return;
+      }
+    } else {
+      out.push(`  # unsupported extern '${decl.name.text}': at most 5 arguments (Win64 home space)`);
+      return;
+    }
+  }
+  out.push(`  call ${sanitizeSymbol(link)}`);
+}
+
+function emitExternDeclCallMasm(decl: ExternFnDecl, link: string, args: CallArg[], out: string[]): void {
+  const regs64 = ["rcx", "rdx", "r8", "r9"] as const;
+  for (let i = 0; i < decl.params.length; i += 1) {
+    const param = decl.params[i];
+    if (!param) {
+      out.push(`  ; unsupported extern '${decl.name.text}': missing parameter metadata`);
+      return;
+    }
+    const expr = resolveExternCallArg(args, param, i);
+    if (!expr) {
+      out.push(`  ; unsupported extern '${decl.name.text}': missing argument for '${param.alias.text}'`);
+      return;
+    }
+    if (i < 4) {
+      const reg = regs64[i];
+      if (!reg) {
+        return;
+      }
+      if (!emitExternArgIntoRegMasm(param, expr, reg, out)) {
+        out.push(`  ; unsupported extern '${decl.name.text}': arg '${param.alias.text}'`);
+        return;
+      }
+    } else if (i === 4) {
+      if (!emitExternArgIntoStackMasm(param, expr, 32, out)) {
+        out.push(`  ; unsupported extern '${decl.name.text}': stack arg '${param.alias.text}'`);
+        return;
+      }
+    } else {
+      out.push(`  ; unsupported extern '${decl.name.text}': at most 5 arguments (Win64 home space)`);
+      return;
+    }
+  }
+  out.push(`  call ${sanitizeSymbol(link)}`);
+}
+
+function tryEmitExternCall(stmt: CallStmt, out: string[], ctx: Win64EmitCtx): boolean {
   const short = calleeShortNameForExtern(stmt.call.callee, ctx.importAliases);
   if (!short) {
     return false;
   }
-  const link = ctx.externLinkByDeclName.get(short);
-  if (!link) {
+  const decl = ctx.externDeclByName.get(short);
+  if (!decl) {
     return false;
   }
-  switch (link) {
-    case "ExitProcess": {
-      const codeArg =
-        findCallArg(stmt.call.args, ["uExitCode", "code"], 0);
-      if (!codeArg) {
-        out.push("  # unsupported extern ExitProcess call: missing code argument");
-        return true;
-      }
-      const code = exprToOperand(codeArg.value);
-      if (!code) {
-        out.push("  # unsupported extern ExitProcess call: non-literal/non-register argument");
-        return true;
-      }
-      out.push(`  mov ecx, ${code}`);
-      out.push("  call ExitProcess");
-      return true;
-    }
-    case "GetStdHandle": {
-      const handleArg = findCallArg(stmt.call.args, ["nStdHandle"], 0);
-      if (!handleArg) {
-        out.push("  # unsupported extern GetStdHandle call: missing nStdHandle");
-        return true;
-      }
-      const handle = exprToOperand(handleArg.value);
-      if (!handle) {
-        out.push("  # unsupported extern GetStdHandle call: nStdHandle must be register/literal");
-        return true;
-      }
-      out.push(`  mov ecx, ${handle}`);
-      out.push("  call GetStdHandle");
-      return true;
-    }
-    case "WriteFile":
-      emitWriteFile(stmt.call.args, out);
-      return true;
-    default:
-      out.push(`  # unsupported extern link symbol '${link}' (decl '${short}')`);
-      return true;
+  if (decl.variadic) {
+    out.push(`  # unsupported variadic extern '${short}'`);
+    return true;
   }
+  const link = externLinkSymbol(decl);
+  emitExternDeclCallGas(decl, link, stmt.call.args, out);
+  return true;
 }
 
-function tryEmitExternMappedCallMasm(stmt: CallStmt, out: string[], ctx: Win64EmitCtx): boolean {
+function tryEmitExternCallMasm(stmt: CallStmt, out: string[], ctx: Win64EmitCtx): boolean {
   const short = calleeShortNameForExtern(stmt.call.callee, ctx.importAliases);
   if (!short) {
     return false;
   }
-  const link = ctx.externLinkByDeclName.get(short);
-  if (!link) {
+  const decl = ctx.externDeclByName.get(short);
+  if (!decl) {
     return false;
   }
-  switch (link) {
-    case "ExitProcess": {
-      const codeArg =
-        findCallArg(stmt.call.args, ["uExitCode", "code"], 0);
-      if (!codeArg) {
-        out.push("  ; unsupported extern ExitProcess call: missing code argument");
-        return true;
-      }
-      const code = exprToOperandMasm(codeArg.value);
-      if (!code) {
-        out.push("  ; unsupported extern ExitProcess call: non-literal/non-register argument");
-        return true;
-      }
-      out.push(`  mov ecx, ${code}`);
-      out.push("  call ExitProcess");
-      return true;
-    }
-    case "GetStdHandle": {
-      const handleArg = findCallArg(stmt.call.args, ["nStdHandle"], 0);
-      if (!handleArg) {
-        out.push("  ; unsupported extern GetStdHandle call: missing nStdHandle");
-        return true;
-      }
-      const handle = exprToOperandMasm(handleArg.value);
-      if (!handle) {
-        out.push("  ; unsupported extern GetStdHandle call: nStdHandle must be register/literal");
-        return true;
-      }
-      out.push(`  mov ecx, ${handle}`);
-      out.push("  call GetStdHandle");
-      return true;
-    }
-    case "WriteFile":
-      emitWriteFileMasm(stmt.call.args, out);
-      return true;
-    default:
-      out.push(`  ; unsupported extern link symbol '${link}' (decl '${short}')`);
-      return true;
+  if (decl.variadic) {
+    out.push(`  ; unsupported variadic extern '${short}'`);
+    return true;
   }
-}
-
-function findCallArg(args: CallArg[], names: string[], fallbackIndex: number): CallArg | undefined {
-  for (const name of names) {
-    const found = args.find((arg) => arg.name?.text === name);
-    if (found) {
-      return found;
-    }
-  }
-  return args[fallbackIndex];
+  const link = externLinkSymbol(decl);
+  emitExternDeclCallMasm(decl, link, stmt.call.args, out);
+  return true;
 }
 
 function isImportQualifiedCall(stmt: CallStmt, shortName: string, ctx: Win64EmitCtx): boolean {
